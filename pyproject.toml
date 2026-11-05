@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "observability"
+version = "0.1.0"
+description = "Trends across Sustenaut's services, behind the team sign-in."
+readme = "README.md"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+requires-python = ">=3.10"
+authors = [{ name = "David Schryer", email = "schryer@gmail.com" }]
+dependencies = []
+
+[project.urls]
+Repository = "https://github.com/Sustenaut/observability"
+
+[project.scripts]
+observability = "observability.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+# `make functional` measures the suite, the `observability` processes it starts
+# included, into coverage/coverage.xml for SonarQube Cloud.
+[tool.coverage.run]
+source = ["observability"]
+patch = ["subprocess"]
+parallel = true
+
+[tool.coverage.xml]
+output = "coverage/coverage.xml"

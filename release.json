@@ -1,0 +1,15 @@
+{
+  "code": [
+    "src/",
+    "pyproject.toml"
+  ],
+  "corpus": "corpus",
+  "manifest": {
+    "kind": "pyproject",
+    "path": "pyproject.toml"
+  },
+  "name": "observability",
+  "package": "pkg.observability",
+  "tag": "PKG-OBSERV-11-2026",
+  "install": "pip install https://github.com/Sustenaut/observability/releases/download/{tag}/observability-{version}-py3-none-any.whl"
+}
