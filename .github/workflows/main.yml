@@ -13,7 +13,7 @@ jobs:
   # it ran are skipped, and nothing here tests less than the queue did.
   tested:
     name: ci
-    uses: Sustenaut/pubkit/.github/workflows/job-tested.yml@2edf28ec3cc49866fe505d783ed811bcfb16f432 # v0.23.2
+    uses: Sustenaut/pubkit/.github/workflows/job-tested.yml@15d51b4568e7f5782f5f394b9f5d629464c4a288 # v0.26.1
     with: {"workflow": ".github/workflows/pr.yml"}
     permissions:
       actions: read
