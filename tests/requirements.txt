@@ -1,0 +1,5 @@
+# The functional suite's direct dependencies. Exact pins only; the resolved
+# set with hashes lives in requirements.lock. Regenerate it with `pubkit lock`.
+-r requirements-pubkit.txt
+# `make functional` measures the suite, the `observability` processes it starts included.
+coverage==7.16.2

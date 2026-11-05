@@ -1,0 +1,20 @@
+{
+  "uses": [
+    {
+      "plugin": "github.app-token",
+      "paths": [
+        ".github/workflows/main.yml",
+        ".github/workflows/pr.yml"
+      ],
+      "mode": "required"
+    },
+    {
+      "plugin": "sonarcloud.scan",
+      "paths": [
+        ".github/workflows/pr.yml",
+        ".github/workflows/main.yml"
+      ],
+      "mode": "required"
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "kind": "utility",
+  "bin": "observability",
+  "ci": {
+    "language": "python",
+    "release": {}
+  },
+  "protect": {
+    "checks": [
+      "ci / passed",
+      "release / release",
+      "integrations / scan"
+    ],
+    "release_app": 5529889
+  }
+}

@@ -1,0 +1,7 @@
+#!/bin/sh
+# Runs observability from this checkout. A .venv, where there is one, lets
+# the test suite measure these processes.
+here=$(cd "$(dirname "$0")/.." && pwd)
+py="$here/.venv/bin/python"
+[ -x "$py" ] || py=python3
+PYTHONPATH="$here/src${PYTHONPATH:+:$PYTHONPATH}" exec "$py" -m observability "$@"
