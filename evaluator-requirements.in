@@ -1,0 +1,5 @@
+# What the evaluator's image installs: the evaluator extra, pinned. The lock beside
+# it (evaluator-requirements.lock) holds every package with its hashes; regenerate it
+# with: uv pip compile --generate-hashes --python-version 3.14 evaluator-requirements.in -o evaluator-requirements.lock
+pyyaml==6.0.3
+integrations[github-app,storage-sink] @ https://github.com/Sustenaut/integrations/releases/download/v0.14.0/integrations-0.14.0-py3-none-any.whl

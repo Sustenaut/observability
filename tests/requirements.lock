@@ -557,8 +557,8 @@ parse_type==0.6.6 \
 pluggy==1.7.0 \
     --hash=sha256:7dd7b0d8832ba3cb632c306926ded123429211b83641b35dc5c41ad2d34f9bec \
     --hash=sha256:d1eaa46ebb595891b860ab086b4d09c8588af65ebd4361b8e8f4bb8920b90ba8
-pubkit @ https://github.com/Sustenaut/pubkit/releases/download/v0.23.2/pubkit-0.23.2-py3-none-any.whl \
-    --hash=sha256:c52dee3b1077ea20919c58b0a154b409c41834d156bd54c81b26c1f57ec2d182
+pubkit @ https://github.com/Sustenaut/pubkit/releases/download/v0.30.0/pubkit-0.30.0-py3-none-any.whl \
+    --hash=sha256:3c130b9a4a08bc66ea1b860a9757e27ca7a57b1011de2db504de3ec90d5c6e33
 pycparser==3.12 \
     --hash=sha256:a076f3f489b39b43ed13563a1dafe42447445bec2e294154ec5c57fcdda4c85e \
     --hash=sha256:f03387877eab82ce01bbdfd0ba7252ee55a90b1c708d5129e2ce915475cf1db6

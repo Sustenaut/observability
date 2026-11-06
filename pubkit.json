@@ -28,6 +28,41 @@
       "from": "uptime-targets",
       "to": "UPTIME_TARGETS",
       "kind": "variable"
+    },
+    {
+      "from": "sustenaut-deploy-ssh-key",
+      "to": "SUSTENAUT_DEPLOY_SSH_KEY",
+      "kind": "secret"
+    },
+    {
+      "from": "TS_GH_OAUTH_CLIENT_ID",
+      "to": "TS_GH_OAUTH_CLIENT_ID",
+      "kind": "secret"
+    },
+    {
+      "from": "TS_GH_OAUTH_SECRET",
+      "to": "TS_GH_OAUTH_SECRET",
+      "kind": "secret"
+    },
+    {
+      "from": "sustenaut-server",
+      "to": "SUSTENAUT_SERVER",
+      "kind": "variable"
+    },
+    {
+      "from": "sustenaut-known-hosts",
+      "to": "SUSTENAUT_KNOWN_HOSTS",
+      "kind": "variable"
+    },
+    {
+      "from": "observability-datasets",
+      "to": "OBSERVABILITY_DATASETS",
+      "kind": "variable"
+    },
+    {
+      "from": "observability-senders",
+      "to": "OBSERVABILITY_SENDERS",
+      "kind": "variable"
     }
   ]
 }

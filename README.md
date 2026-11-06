@@ -182,6 +182,32 @@ For now it prints and writes nothing. Writing the signals to storage's
 `signals` tenant, for the ingest pod to load, waits on the integrations
 release with the storage client.
 
+## Deploying
+
+The evaluator runs on the shared k3s server, in namespace `observability`, as the
+CronJob in `k8s/evaluator.yaml`: every two minutes, one run at a time, each stopped
+if it overruns. It is the service account `evaluator`, which is the principal storage's
+`signals` tenant lets write (`k8s:observability/evaluator`), with a projected token
+for storage and no Kubernetes API token.
+
+`.github/workflows/deploy.yml` builds the image (`Dockerfile`, from the hash-locked
+`evaluator-requirements.lock`) on each merge to main and applies `k8s/` with pubkit's
+`k8s-deploy.yml`, once `DEPLOY_OBSERVABILITY` is `on`. Its settings come from the
+repository's variables: `OBSERVABILITY_DATASETS` and `OBSERVABILITY_SENDERS` become
+the ConfigMap `evaluator-settings`.
+
+To take it live, or bring it back in step, from this repository's root on a machine
+on the admin tailnet:
+
+```sh
+./with-secrets k8s/admin/go-live.sh
+```
+
+It makes the namespace (the server's `sustenaut-app`), puts `observability-reader-key`
+in as the Secret `evaluator-bigquery-key`, sends the repository's settings from
+Bitwarden (`pubkit app-secrets`), turns `DEPLOY_OBSERVABILITY` on, deploys, and runs
+the evaluator once, printing its log. Every step can run again.
+
 ## Working on it
 
 ```sh

@@ -1,0 +1,37 @@
+# Builds the evaluator's image on each merge to main, and sends k8s/ to the shared k3s
+# server over SSH and the tailnet, with pubkit's k8s-deploy.yml (pubkit's README,
+# "Deploying a service to k3s"), where the deploy key can only run sustenaut-deploy.
+#
+# What a deployment reads is in repository variables, so nothing here names a
+# consumer: OBSERVABILITY_DATASETS and OBSERVABILITY_SENDERS. It deploys only once
+# DEPLOY_OBSERVABILITY is "on", which k8s/admin/go-live.sh sets after making the
+# namespace and its Secret. Without SUSTENAUT_SERVER the image is built and pushed,
+# and nothing is deployed.
+name: deploy
+
+on:
+  push: { branches: [main] }
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  deploy:
+    uses: Sustenaut/pubkit/.github/workflows/k8s-deploy.yml@c7785ba2f32bd5c5a78053e9bfeaa1f966ae36f1 # v0.30.0
+    with:
+      image: ghcr.io/sustenaut/observability
+      deploys: k8s observability DEPLOY_OBSERVABILITY
+      # It starts as its own user, holds its rules and its dependencies, and refuses to
+      # evaluate without its settings.
+      check: |
+        docker run --rm "$IMAGE" sh -c 'test "$(id -u)" = 1000 && observability rules | grep -q "^sender_silent"'
+        docker run --rm "$IMAGE" python -c 'import fastavro, yaml, integrations.clients.storage, observability.bigquery'
+        test "$(docker run --rm "$IMAGE" observability evaluate >/dev/null 2>&1; echo $?)" = 2
+      render: |
+        var() { jq -r --arg name "$1" '.[$name] // ""' <<<"$VARS"; }
+        kustomize edit add configmap evaluator-settings \
+          --from-literal="OBSERVABILITY_DATASETS=$(var OBSERVABILITY_DATASETS)" \
+          --from-literal="OBSERVABILITY_SENDERS=$(var OBSERVABILITY_SENDERS)"
+    secrets: inherit

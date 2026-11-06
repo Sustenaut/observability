@@ -17,6 +17,22 @@
       "mode": "required"
     },
     {
+      "plugin": "github.ghcr",
+      "paths": [
+        ".github/workflows/deploy.yml",
+        "k8s/evaluator.yaml",
+        "k8s/kustomization.yaml"
+      ],
+      "mode": "required"
+    },
+    {
+      "plugin": "github.repo-ops",
+      "paths": [
+        "k8s/admin/go-live.sh"
+      ],
+      "mode": "required"
+    },
+    {
       "plugin": "google.bigquery",
       "paths": [
         "src/observability/bigquery.py"
@@ -39,6 +55,20 @@
         ".github/workflows/main.yml"
       ],
       "mode": "required"
+    },
+    {
+      "plugin": "storage.api",
+      "paths": [
+        ".github/workflows/deploy.yml"
+      ],
+      "mode": "required"
+    },
+    {
+      "plugin": "tailscale.tailnet",
+      "paths": [
+        "pubkit.json"
+      ],
+      "mode": "required"
     }
   ],
   "exclude": [
@@ -49,6 +79,15 @@
     {
       "path": "tests/steps/test_evaluate.py",
       "reason": "A local stand-in for BigQuery's API and Google's token endpoint that the suite queries"
+    }
+  ],
+  "own_hosts": [
+    "sustenaut.eu"
+  ],
+  "other_secrets": [
+    {
+      "name": "SUSTENAUT_DEPLOY_SSH_KEY",
+      "reason": "An SSH key to our own server"
     }
   ]
 }
