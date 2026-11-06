@@ -1,0 +1,4 @@
+{
+  "category": "changed",
+  "change": "sender_windows and call_rollups are version 2: each reads its rows from {{since}}, a bucket's start, so a rule reads only its lookback"
+}

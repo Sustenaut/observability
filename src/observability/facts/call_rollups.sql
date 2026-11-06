@@ -1,5 +1,5 @@
 -- fact: call_rollups
--- version: 1
+-- version: 2
 -- reads: calls
 --
 -- One row per app, plugin, operation and two-minute bucket of the calls an app
@@ -8,9 +8,12 @@
 -- services, and `request_total` for a service's own timing of a whole request
 -- (operations service-total and client-total), which is not a call to an
 -- outside service and must never be counted as one.
+--
+-- Version 2 reads only calls at or after {{since}}, a bucket's start, so a
+-- rule reads its lookback alone and every bucket it reads is whole.
 SELECT
   'call_rollups' AS fact,
-  '1' AS fact_version,
+  '2' AS fact_version,
   '{{project}}' AS project,
   IF(operation IN ('service-total', 'client-total'), 'request_total', 'plugin') AS scope,
   app,
@@ -25,4 +28,5 @@ SELECT
   APPROX_QUANTILES(latency_ms, 2)[OFFSET(1)] AS latency_ms_median,
   MAX(latency_ms) AS latency_ms_max
 FROM {{dataset}}.calls
+WHERE `at` >= {{since}}
 GROUP BY scope, app, plugin, operation, bucket

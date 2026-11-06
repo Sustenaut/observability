@@ -1,0 +1,15 @@
+id: storage_failures
+version: 1
+severity: warning
+summary: A sender failed to write to storage in the last 6 minutes.
+lookback_minutes: 10
+query: |
+  SELECT
+    CONCAT(project, '/', sender_prefix) AS subject,
+    project,
+    sender_prefix,
+    SUM(storage_failures) AS failed_writes
+  FROM {{fact:sender_windows}}
+  WHERE kind = 'sender' AND bucket >= TIMESTAMP_SUB({{now}}, INTERVAL 6 MINUTE)
+  GROUP BY project, sender_prefix
+  HAVING SUM(storage_failures) > 0

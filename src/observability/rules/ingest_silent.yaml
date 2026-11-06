@@ -1,0 +1,16 @@
+id: ingest_silent
+version: 1
+severity: critical
+summary: The ingest pod has reported nothing for a project for more than 6 minutes.
+lookback_minutes: 60
+query: |
+  WITH seen AS (
+    SELECT project, MAX(last_cycle_end) AS last_seen
+    FROM {{fact:sender_windows}}
+    WHERE kind = 'ingest'
+    GROUP BY project
+  )
+  SELECT projects.project AS subject, seen.last_seen
+  FROM {{projects}} AS projects
+  LEFT JOIN seen ON seen.project = projects.project
+  WHERE seen.last_seen IS NULL OR seen.last_seen < TIMESTAMP_SUB({{now}}, INTERVAL 6 MINUTE)

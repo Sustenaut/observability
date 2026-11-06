@@ -17,6 +17,13 @@
       "mode": "required"
     },
     {
+      "plugin": "google.bigquery",
+      "paths": [
+        "src/observability/bigquery.py"
+      ],
+      "mode": "required"
+    },
+    {
       "plugin": "slack.post",
       "paths": [
         ".github/workflows/uptime.yml",
@@ -38,6 +45,10 @@
     {
       "path": "tests/steps/test_uptime.py",
       "reason": "A local stand-in for Slack's chat.postMessage that the suite posts to"
+    },
+    {
+      "path": "tests/steps/test_evaluate.py",
+      "reason": "A local stand-in for BigQuery's API and Google's token endpoint that the suite queries"
     }
   ]
 }

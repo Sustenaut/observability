@@ -64,15 +64,34 @@ class Warehouse:
             self.made.add(dataset)
         for table in ("status", "calls"):
             names = [c["name"] for c in schema(table)]
-            for n, row in enumerate(rows.get(table, [])):
+            expanded = [dict(r) for r in rows.get(table, []) for _ in range(r.pop("repeat", 1) if "repeat" in r else 1)]
+            for n, row in enumerate(expanded):
                 full = complete(table, row, n)
                 unknown = set(full) - set(names)
                 assert not unknown, f"{fixture}: {table} has no column {', '.join(sorted(unknown))}"
                 values = [full.get(name) for name in names]
                 self.db.execute(f"INSERT INTO {dataset}.{table} VALUES ({', '.join('?' * len(names))})", values)
 
-    def run(self, bigquery_sql: str) -> list[dict]:
+    def signals(self, rows: list[dict]) -> None:
+        """observability.signals, holding these rows."""
+        if "observability" not in self.made:
+            self.db.execute("CREATE SCHEMA observability")
+            self.db.execute("CREATE TABLE observability.signals (rule_id VARCHAR, rule_version VARCHAR, subject VARCHAR,"
+                            " severity VARCHAR, started_at TIMESTAMP, ended_at TIMESTAMP, evidence JSON,"
+                            " emitted_at TIMESTAMP)")
+            self.made.add("observability")
+        for row in rows:
+            self.db.execute("INSERT INTO observability.signals VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                            [row["rule_id"], row.get("rule_version", "1"), row["subject"], row.get("severity", "warning"),
+                             moment(row["started_at"]), moment(row["ended_at"]) if row.get("ended_at") else None,
+                             json.dumps(row.get("evidence", {})), moment(row["started_at"])])
+
+    def typed(self, bigquery_sql: str) -> tuple[list[tuple[str, str]], list[tuple]]:
+        """Each column's name and DuckDB type, and the rows."""
         local = sqlglot.transpile(bigquery_sql, read="bigquery", write="duckdb")[0]
         cursor = self.db.execute(local)
-        names = [d[0] for d in cursor.description]
-        return [dict(zip(names, row)) for row in cursor.fetchall()]
+        return [(d[0], str(d[1])) for d in cursor.description], cursor.fetchall()
+
+    def run(self, bigquery_sql: str) -> list[dict]:
+        columns, rows = self.typed(bigquery_sql)
+        return [dict(zip([c[0] for c in columns], row)) for row in rows]

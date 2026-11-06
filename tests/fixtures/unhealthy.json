@@ -1,0 +1,24 @@
+{
+  "status": [
+    {"kind": "ingest", "sender": "ingest-0", "at": "10:20:10", "storage_ok": true, "loaded_files": 1, "rejected_now": 0,
+     "inbox_files": 1, "inbox_bytes": 10, "inbox_more": false, "inbox_oldest_seconds": 30,
+     "rejected_files": 0, "rejected_more": false, "jobs_today": 1100, "status_jobs_today": 200},
+    {"kind": "ingest", "sender": "ingest-0", "at": "10:28:10", "storage_ok": false, "loaded_files": 0, "rejected_now": 0,
+     "inbox_files": 4, "inbox_bytes": 100, "inbox_more": false, "inbox_oldest_seconds": 900,
+     "rejected_files": 2, "rejected_more": false, "rejected_oldest_seconds": 4000, "jobs_today": 1250, "status_jobs_today": 300,
+     "problems": "storage did not answer"},
+    {"sender": "app-7d9f8c6b5d-x2k4p", "at": "10:00:30", "calls": 1, "drops": 0, "buffer_size": 1, "storage_failures": 0,
+     "page_count": 5, "page_ms_low": 10, "page_ms_median": 50, "page_ms_high": 100, "cold_start": true},
+    {"sender": "app-7d9f8c6b5d-x2k4p", "at": "10:28:30", "calls": 5, "drops": 3, "buffer_size": 3, "storage_failures": 1,
+     "page_count": 10, "page_ms_low": 10, "page_ms_median": 300, "page_ms_high": 7000, "cold_start": false},
+    {"sender": "web-00003-k2m", "at": "10:10:30", "calls": 1, "drops": 0, "buffer_size": 1, "storage_failures": 0},
+    {"sender": "plan-00012-abc", "at": "10:00:40", "calls": 1, "drops": 0, "buffer_size": 1, "storage_failures": 0}
+  ],
+  "calls": [
+    {"app": "service", "plugin": "github.edit-pr", "operation": "edit", "at": "10:15:00", "latency_ms": 100, "repeat": 22},
+    {"app": "service", "plugin": "github.edit-pr", "operation": "edit", "at": "10:16:00", "latency_ms": 900, "outcome": "unavailable", "repeat": 3},
+    {"app": "service", "plugin": "slack.post", "operation": "post", "at": "10:15:00", "latency_ms": 50, "repeat": 24},
+    {"app": "service", "plugin": "slack.post", "operation": "post", "at": "10:15:10", "latency_ms": 50, "outcome": "refused", "status": 403},
+    {"app": "service", "plugin": "github.edit-pr", "operation": "service-total", "at": "10:15:00", "latency_ms": 2000, "outcome": "unavailable", "repeat": 10}
+  ]
+}

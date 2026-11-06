@@ -9,3 +9,8 @@ duckdb==2.0.0
 sqlglot==30.29.0
 # DuckDB returns a TIMESTAMP's bucket (BigQuery's TIMESTAMP_SECONDS) with its zone, through pytz.
 pytz==2026.6
+# The rules are YAML.
+pyyaml==6.0.3
+# The evaluator calls BigQuery through the integrations library's Caller; its
+# github-app extra signs Google's token, and the suite makes a key to sign with.
+integrations[github-app] @ https://github.com/Sustenaut/integrations/releases/download/v0.13.0/integrations-0.13.0-py3-none-any.whl

@@ -120,6 +120,68 @@ A signal is one rule's finding about one subject over a span of time:
 A rule's version changes whenever what it finds could change, so every
 signal can be traced to the exact rule that produced it.
 
+A signal is written twice: when it starts, with `ended_at` empty, and when
+it ends, with the same `started_at`. A breach that lasts is written once,
+not on every run.
+
+## Rules
+
+A rule is one YAML file under `src/observability/rules/`: its `id`,
+`version`, `severity` (`critical`, `warning` or `info`), a one-line
+`summary`, `lookback_minutes`, and a BigQuery `query` over the facts. The
+query returns one row per subject in breach now; `subject` names it, and
+every other column is the signal's evidence. It reads `{{fact:<id>}}` (every
+dataset's rows, from its lookback on), and may use `{{now}}`,
+`{{projects}}` and `{{always_senders}}`.
+
+| Rule | Severity | Finds |
+|---|---|---|
+| `sender_silent` | critical | an always-on sender with no report for more than 6 minutes |
+| `ingest_silent` | critical | a project the ingest pod has reported nothing for in more than 6 minutes |
+| `storage_unreachable` | critical | storage not answering the ingest pod's latest cycle |
+| `storage_failures` | warning | a sender failing to write to storage in the last 6 minutes |
+| `drops` | warning | a sender dropping call records in the last 6 minutes |
+| `inbox_stale` | warning | a file waiting more than 10 minutes in a project's inbox |
+| `rejected_files` | warning | files in a project's buffer that couldn't load |
+| `load_jobs_near_limit` | warning | more than 1,200 of the 1,400 load jobs a table used today |
+| `plugin_errors` | warning | more than 5% of an app's calls to a plugin failing over 30 minutes, out of at least 20 |
+| `slow_pages` | warning | a warm sender answering slower than 5 seconds in the last 6 minutes |
+| `cold_start_share` | info | the share of a sender's answering windows in the last day that began cold |
+
+**Senders** are configuration: `OBSERVABILITY_SENDERS` maps each project to
+its sender prefixes, each `always` (silence is a fault) or `on-demand` (it
+runs only when asked, as a Cloud Run service scaled to zero does). Only
+`always` senders can be silent.
+
+```yaml
+example:
+  app: always
+  plan: on-demand
+```
+
+## The evaluator
+
+`observability evaluate` runs every rule against BigQuery and prints the
+signals that start and end now, one JSON line each, in the shape of
+`observability.signals`. It reads the signals still open from that table,
+so an open signal isn't written again. A rule whose query fails ends none
+of its signals, because not knowing isn't all clear, and the run then exits
+1. Its settings:
+
+| Variable | What |
+|---|---|
+| `OBSERVABILITY_DATASETS` | the call log datasets to read |
+| `OBSERVABILITY_SENDERS` | the senders each project should have (above) |
+| `OBSERVABILITY_BIGQUERY_KEY` | `observability-reader`'s key: its JSON, or that JSON in base64 |
+
+It needs the `evaluator` extra (`pip install '.[evaluator]'`): PyYAML, and
+the integrations library, whose `Caller` makes each BigQuery call with its
+class's timeout and retries.
+
+For now it prints and writes nothing. Writing the signals to storage's
+`signals` tenant, for the ingest pod to load, waits on the integrations
+release with the storage client.
+
 ## Working on it
 
 ```sh

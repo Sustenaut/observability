@@ -1,0 +1,12 @@
+{
+  "status": [
+    {"kind": "ingest", "sender": "ingest-0", "at": "10:28:10", "storage_ok": true, "loaded_files": 2, "rejected_now": 0,
+     "inbox_files": 0, "inbox_bytes": 0, "inbox_more": false, "rejected_files": 0, "rejected_more": false,
+     "jobs_today": 400, "status_jobs_today": 400},
+    {"sender": "app-7d9f8c6b5d-x2k4p", "at": "10:28:30", "calls": 5, "drops": 0, "buffer_size": 3, "storage_failures": 0,
+     "page_count": 10, "page_ms_low": 10, "page_ms_median": 300, "page_ms_high": 900, "cold_start": false}
+  ],
+  "calls": [
+    {"app": "service", "plugin": "github.edit-pr", "operation": "edit", "at": "10:15:00", "latency_ms": 100, "repeat": 30}
+  ]
+}

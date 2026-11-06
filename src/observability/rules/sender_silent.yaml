@@ -1,0 +1,21 @@
+id: sender_silent
+version: 1
+severity: critical
+summary: An always-on sender has sent no report for more than 6 minutes.
+lookback_minutes: 60
+query: |
+  WITH seen AS (
+    SELECT project, sender_prefix, MAX(last_cycle_end) AS last_seen
+    FROM {{fact:sender_windows}}
+    WHERE kind = 'sender'
+    GROUP BY project, sender_prefix
+  )
+  SELECT
+    CONCAT(expected.project, '/', expected.sender_prefix) AS subject,
+    expected.project,
+    expected.sender_prefix,
+    seen.last_seen
+  FROM {{always_senders}} AS expected
+  LEFT JOIN seen
+    ON seen.project = expected.project AND seen.sender_prefix = expected.sender_prefix
+  WHERE seen.last_seen IS NULL OR seen.last_seen < TIMESTAMP_SUB({{now}}, INTERVAL 6 MINUTE)

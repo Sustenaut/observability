@@ -1,0 +1,14 @@
+id: rejected_files
+version: 1
+severity: warning
+summary: A project's buffer holds files that could not be loaded.
+lookback_minutes: 10
+query: |
+  WITH windows AS (
+    SELECT *, ROW_NUMBER() OVER (PARTITION BY project ORDER BY bucket DESC) AS newest
+    FROM {{fact:sender_windows}}
+    WHERE kind = 'ingest'
+  )
+  SELECT project AS subject, bucket, rejected_files, rejected_oldest_seconds
+  FROM windows
+  WHERE newest = 1 AND rejected_files > 0
