@@ -20,16 +20,6 @@
       "kind": "secret"
     },
     {
-      "from": "uptime-slack-channel",
-      "to": "UPTIME_SLACK_CHANNEL",
-      "kind": "variable"
-    },
-    {
-      "from": "uptime-targets",
-      "to": "UPTIME_TARGETS",
-      "kind": "variable"
-    },
-    {
       "from": "sustenaut-deploy-ssh-key",
       "to": "SUSTENAUT_DEPLOY_SSH_KEY",
       "kind": "secret"
@@ -58,7 +48,9 @@
   "variables": {
     "names": [
       "OBSERVABILITY_DATASETS",
-      "OBSERVABILITY_SENDERS"
+      "OBSERVABILITY_SENDERS",
+      "UPTIME_SLACK_CHANNEL",
+      "UPTIME_TARGETS"
     ],
     "deploy": "deploy.yml"
   }

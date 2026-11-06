@@ -86,19 +86,22 @@ UPTIME_TARGETS='[{"name": "example", "url": "https://example.test/healthz"}]' \
   PYTHONPATH=src python3 -m observability.uptime
 ```
 
-**Setting it up.** The bot's token, the channel and the targets live in
-Bitwarden's Sustenaut project, as `slack-bot-token`, `uptime-slack-channel`
-and `uptime-targets`. `pubkit.json`'s `secrets` list sends them here, as
-the secret `SUSTENAUT_SLACK_BOT_TOKEN` and the variables
-`UPTIME_SLACK_CHANNEL` and `UPTIME_TARGETS`. The bot must be in each
-channel it posts to; a direct message needs nothing more.
+**Setting it up.** The bot's token is a secret: Bitwarden's Sustenaut project keeps
+it as `slack-bot-token`, and `pubkit.json`'s `secrets` list sends it here as
+`SUSTENAUT_SLACK_BOT_TOKEN`:
 
 ```sh
 ./with-secrets ./pubkit app-secrets --check   # names and lengths only; sends nothing
 ./with-secrets ./pubkit app-secrets
 ```
 
-To change the targets, edit `uptime-targets` in Bitwarden and run it again.
+The channel and the targets aren't secrets: they are the repository variables
+`UPTIME_SLACK_CHANNEL` and `UPTIME_TARGETS`, which `pubkit.json`'s `variables` block
+declares and the owner's state repository keeps (`pubkit variables --apply` sets
+them). To change the targets, change them there. The Bitwarden entries
+`uptime-slack-channel` and `uptime-targets`, which used to send them, can be deleted
+once the state repository tracks them. The bot must be in each channel it posts
+to; a direct message needs nothing more.
 
 GitHub turns off a public repository's scheduled workflows after 60 days
 without activity in it. If it does, re-enable the workflow from the
