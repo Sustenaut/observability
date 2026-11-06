@@ -12,5 +12,22 @@
       "integrations / scan"
     ],
     "release_app": 5529889
-  }
+  },
+  "secrets": [
+    {
+      "from": "slack-bot-token",
+      "to": "SUSTENAUT_SLACK_BOT_TOKEN",
+      "kind": "secret"
+    },
+    {
+      "from": "uptime-slack-channel",
+      "to": "UPTIME_SLACK_CHANNEL",
+      "kind": "variable"
+    },
+    {
+      "from": "uptime-targets",
+      "to": "UPTIME_TARGETS",
+      "kind": "variable"
+    }
+  ]
 }

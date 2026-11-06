@@ -51,6 +51,58 @@ prints the query, for every dataset given, as one `UNION ALL`. The suite runs
 each fact on fixture rows in DuckDB, its SQL put in DuckDB's dialect by
 sqlglot, so CI needs no BigQuery; `tests/schemas/` holds the call log's
 columns.
+## Uptime
+
+`.github/workflows/uptime.yml` probes each site every five minutes from
+GitHub Actions, off the server it watches, so it still reports when that
+server is down. Every other part of observability reads what services
+report; this is the one check that doesn't depend on them.
+
+- **Targets** are the repository variable `UPTIME_TARGETS`, a JSON list of
+  `{"name", "url", "expect_status", "channel"}`. `expect_status` defaults
+  to 200. `channel`, a channel's or a person's id, says where that target's
+  alerts go; without it they go to the default, `UPTIME_SLACK_CHANNEL`. A
+  redirect is compared, not followed, so a site behind sign-in can be
+  probed by the redirect it answers with. No target is named here, and
+  with the variable unset the workflow does nothing.
+- **Down** means two runs in a row failed: no answer within 10 s, or a
+  status other than the one expected, each run trying a failing target
+  twice. The state between runs, each target's failures in a row, is a
+  small file, `uptime-state.json` in the working directory, kept in
+  the Actions cache. If the cache is lost, the next run starts afresh.
+- **Alerts:** going down and recovering are posted by the Sustenaut Slack
+  bot (`SUSTENAUT_SLACK_BOT_TOKEN`, `chat.postMessage`), one post per
+  channel: each target's own, or the default `UPTIME_SLACK_CHANNEL`. Slack answers 200 even to a post it refuses, so the probe reads
+  its `ok` and fails the run with Slack's reason. Every other Slack post
+  goes through the integrations service, but that service runs on the
+  server being watched, so this one is made directly, as release-state's
+  failure notice is. Without the token nothing is posted, and without the default nothing is
+  posted for the targets that have no channel of their own.
+  A run fails while any target is down, so GitHub's failed-run email is
+  the backup.
+
+```sh
+UPTIME_TARGETS='[{"name": "example", "url": "https://example.test/healthz"}]' \
+  PYTHONPATH=src python3 -m observability.uptime
+```
+
+**Setting it up.** The bot's token, the channel and the targets live in
+Bitwarden's Sustenaut project, as `slack-bot-token`, `uptime-slack-channel`
+and `uptime-targets`. `pubkit.json`'s `secrets` list sends them here, as
+the secret `SUSTENAUT_SLACK_BOT_TOKEN` and the variables
+`UPTIME_SLACK_CHANNEL` and `UPTIME_TARGETS`. The bot must be in each
+channel it posts to; a direct message needs nothing more.
+
+```sh
+./with-secrets ./pubkit app-secrets --check   # names and lengths only; sends nothing
+./with-secrets ./pubkit app-secrets
+```
+
+To change the targets, edit `uptime-targets` in Bitwarden and run it again.
+
+GitHub turns off a public repository's scheduled workflows after 60 days
+without activity in it. If it does, re-enable the workflow from the
+Actions tab.
 
 ## Signals
 
