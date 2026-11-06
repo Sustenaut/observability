@@ -1,0 +1,12 @@
+{
+  "status": [
+    {"sender": "app-7d9f8c6b5d-x2k4p", "at": "10:00:30", "calls": 3, "drops": 0, "buffer_size": 5, "storage_failures": 0,
+     "page_count": 10, "page_ms_low": 20, "page_ms_median": 100, "page_ms_high": 300, "cold_start": true},
+    {"sender": "app-7d9f8c6b5d-q8z2n", "at": "10:01:10", "calls": 1, "drops": 0, "buffer_size": 2, "storage_failures": 0,
+     "page_count": 0, "cold_start": false},
+    {"sender": "app-7d9f8c6b5d-x2k4p", "at": "10:01:50", "calls": 2, "drops": 1, "buffer_size": 9, "storage_failures": 1,
+     "page_count": 30, "page_ms_low": 40, "page_ms_median": 200, "page_ms_high": 900, "cold_start": false},
+    {"sender": "app-7d9f8c6b5d-x2k4p", "at": "10:03:00", "calls": 4, "drops": 0, "buffer_size": 1, "storage_failures": 0,
+     "page_count": 5, "page_ms_low": 50, "page_ms_median": 80, "page_ms_high": 120, "cold_start": false}
+  ]
+}

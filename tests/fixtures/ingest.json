@@ -1,0 +1,12 @@
+{
+  "status": [
+    {"kind": "ingest", "sender": "ingest-0", "at": "10:00:20", "storage_ok": true, "loaded_files": 2, "rejected_now": 0,
+     "inbox_files": 3, "inbox_bytes": 4000, "inbox_more": false, "inbox_oldest_seconds": 90,
+     "rejected_files": 1, "rejected_more": false, "rejected_oldest_seconds": 3600, "jobs_today": 40, "status_jobs_today": 41},
+    {"kind": "ingest", "sender": "ingest-0", "at": "10:01:40", "storage_ok": false, "loaded_files": 0, "rejected_now": 1,
+     "inbox_files": 5, "inbox_bytes": 9000, "inbox_more": true, "inbox_oldest_seconds": 210,
+     "rejected_files": 2, "rejected_more": false, "rejected_oldest_seconds": 3700, "jobs_today": 41, "status_jobs_today": 42,
+     "problems": "storage did not answer"},
+    {"sender": "ingest-x2k4p", "at": "10:01:00", "calls": 7, "drops": 0, "buffer_size": 7, "storage_failures": 0}
+  ]
+}

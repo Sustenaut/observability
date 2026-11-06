@@ -3,3 +3,9 @@
 -r requirements-pubkit.txt
 # `make functional` measures the suite, the `observability` processes it starts included.
 coverage==7.16.2
+# The facts' SQL runs on fixture rows in DuckDB, put in its dialect by sqlglot,
+# so the suite needs no BigQuery.
+duckdb==2.0.0
+sqlglot==30.29.0
+# DuckDB returns a TIMESTAMP's bucket (BigQuery's TIMESTAMP_SECONDS) with its zone, through pytz.
+pytz==2026.6
