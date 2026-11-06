@@ -14,11 +14,12 @@ authors = [{ name = "David Schryer", email = "schryer@gmail.com" }]
 dependencies = []
 
 [project.optional-dependencies]
-# The rules and the evaluator: rules are YAML, and BigQuery is called through the
-# integrations library's Caller (its github-app extra signs Google's token).
+# The rules and the evaluator: rules are YAML, and BigQuery and storage are called
+# through the integrations library's Caller (github-app signs Google's token;
+# storage-sink brings fastavro, for the signal files).
 evaluator = [
   "pyyaml",
-  "integrations[github-app] @ https://github.com/Sustenaut/integrations/releases/download/v0.13.0/integrations-0.13.0-py3-none-any.whl",
+  "integrations[github-app,storage-sink] @ https://github.com/Sustenaut/integrations/releases/download/v0.14.0/integrations-0.14.0-py3-none-any.whl",
 ]
 
 [project.urls]

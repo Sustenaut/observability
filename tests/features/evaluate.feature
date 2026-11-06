@@ -98,3 +98,60 @@ Feature: The evaluator
   Scenario: BigQuery's answers are read by their types
     When BigQuery answers a row of every type
     Then the row reads as Python values
+
+  Scenario: With storage, the run's signals are written to the signals tenant, one file
+    Given the signals tenant is OBSERVABILITY_STORAGE_URL
+    When the evaluator runs at 10:30
+    Then it succeeds
+    And one file of 10 signals is written to inbox/signals/2026-11-01/
+
+  Scenario: A start written but not loaded yet is open, so it isn't written again
+    Given the signals tenant is OBSERVABILITY_STORAGE_URL
+    And the tenant holds a start of "storage_unreachable" for "example" at 10:28, not loaded yet
+    When the evaluator runs at 10:30
+    Then it succeeds
+    And it writes nothing for "storage_unreachable"
+
+  Scenario: An end written but not loaded yet closes the open signal, so it isn't ended twice
+    Given the signals tenant is OBSERVABILITY_STORAGE_URL
+    And the open signal "sender_silent" for "example/app" since 10:10
+    And the tenant holds an end of "sender_silent" for "example/app" started at 10:10, not loaded yet
+    When the evaluator runs at 10:30
+    Then it succeeds
+    And it writes nothing for "sender_silent" on "example/app"
+
+  Scenario: An end of another start leaves the open signal open
+    Given the signals tenant is OBSERVABILITY_STORAGE_URL
+    And the open signal "sender_silent" for "example/app" since 10:10
+    And the tenant holds an end of "sender_silent" for "example/app" started at 09:00, not loaded yet
+    When the evaluator runs at 10:30
+    Then it ends "sender_silent" for "example/app", started at 10:10
+
+  Scenario: A file loaded between its listing and its reading is skipped
+    Given the signals tenant is OBSERVABILITY_STORAGE_URL
+    And a file in the tenant is loaded between its listing and its reading
+    When the evaluator runs at 10:30
+    Then it succeeds
+
+  Scenario: A run with nothing to say writes no file
+    Given the signals tenant is OBSERVABILITY_STORAGE_URL
+    And the dataset "calls_fine" holds "healthy"
+    And OBSERVABILITY_DATASETS is "calls_fine"
+    And OBSERVABILITY_SENDERS is "fine: {app: always}"
+    When the evaluator runs at 10:30
+    Then it succeeds
+    And nothing is written to the tenant
+
+  Scenario: Signals storage refuses fail the run
+    Given the signals tenant is OBSERVABILITY_STORAGE_URL
+    And storage refuses writes
+    When the evaluator runs at 10:30
+    Then it fails with code 1
+    And stderr mentions "the signals could not be written"
+
+  Scenario: Without the signals not loaded yet, nothing is evaluated
+    Given the signals tenant is OBSERVABILITY_STORAGE_URL
+    And storage does not answer listings
+    When the evaluator runs at 10:30
+    Then it fails with code 2
+    And stderr mentions "could not read the open signals"
