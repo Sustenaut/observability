@@ -12,5 +12,17 @@
       "integrations / scan"
     ],
     "release_app": 5529889
-  }
+  },
+  "secrets": [
+    {
+      "from": "uptime-slack-webhook",
+      "to": "UPTIME_SLACK_WEBHOOK",
+      "kind": "secret"
+    },
+    {
+      "from": "uptime-targets",
+      "to": "UPTIME_TARGETS",
+      "kind": "variable"
+    }
+  ]
 }
