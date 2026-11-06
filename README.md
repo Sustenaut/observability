@@ -11,6 +11,47 @@ another service's job.
 This repository is code only. Which services and datasets it reads is
 configuration, given where it runs, so nothing here names them.
 
+## Facts
+
+A fact is what the call log says, before any rule judges it: one versioned
+BigQuery query under `src/observability/facts/`, whose header names it and
+gives its version. The version goes up whenever a change could change a row,
+and every row carries `fact` and `fact_version`, so each signal can be traced
+to the query it came from.
+
+| Fact | Reads | One row per |
+|---|---|---|
+| `sender_windows` | `status` | kind, sender prefix and two-minute bucket |
+| `plugin_rollups` | `calls` | app, plugin, operation and two-minute bucket |
+| `request_totals` | `calls` | the same, for a service's own timing of a whole request |
+
+- **`sender_windows`** names a sender by its prefix, the pod or Cloud Run
+  revision name without its generated suffix, since that suffix changes with
+  each pod and revision. Rows of one bucket are merged: counts summed, the
+  quickest and slowest answers kept, the median a count-weighted mean of the
+  rows' medians (`page_ms_median_approximate` when more than one row
+  answered), the largest buffer and any cold start. Ingest rows keep their own
+  fields: what waits, what was rejected and loaded, the day's load jobs,
+  whether storage answered, and the problems. A bucket with no row is a
+  sender's silence; the fact records only what was reported.
+- **`plugin_rollups`** counts each app's calls, its errors by outcome
+  (`refused`, `unavailable`) and retries, with the median and slowest latency.
+  The `service-total` and `client-total` operations time a whole request, not
+  a call to an outside service, so they are in **`request_totals`** instead.
+
+Which datasets are read is configuration: `OBSERVABILITY_DATASETS` lists them,
+comma-separated, and a dataset `calls_<project>` is that project's.
+
+```sh
+bin/observability facts                                 # each fact and its version
+bin/observability facts sender_windows --dataset calls_example
+```
+
+prints the query, for every dataset given, as one `UNION ALL`. The suite runs
+each fact on fixture rows in DuckDB, its SQL put in DuckDB's dialect by
+sqlglot, so CI needs no BigQuery; `tests/schemas/` holds the call log's
+columns.
+
 ## Signals
 
 A signal is one rule's finding about one subject over a span of time:

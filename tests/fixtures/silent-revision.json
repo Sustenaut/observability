@@ -1,0 +1,8 @@
+{
+  "status": [
+    {"sender": "plan-00012-abc", "at": "10:00:40", "calls": 1, "drops": 0, "buffer_size": 1, "storage_failures": 0, "cold_start": true},
+    {"sender": "plan-00012-abc", "at": "10:02:40", "calls": 1, "drops": 0, "buffer_size": 1, "storage_failures": 0, "cold_start": false},
+    {"sender": "plan-00012-abc", "at": "10:04:40", "calls": 0, "drops": 0, "buffer_size": 0, "storage_failures": 0, "cold_start": false},
+    {"sender": "plan-00013-xyz", "at": "10:20:40", "calls": 2, "drops": 0, "buffer_size": 2, "storage_failures": 0, "cold_start": true}
+  ]
+}
