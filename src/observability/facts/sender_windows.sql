@@ -1,5 +1,5 @@
 -- fact: sender_windows
--- version: 1
+-- version: 2
 -- reads: status
 --
 -- One row per sender and two-minute bucket. A sender is named by its prefix,
@@ -10,6 +10,9 @@
 -- count-weighted mean of the rows' medians, flagged approximate when more
 -- than one row answered requests. A bucket with no row is a sender's
 -- silence: this fact records what was reported, never what was not.
+--
+-- Version 2 reads only reports at or after {{since}}, a bucket's start, so a
+-- rule reads its lookback alone and every bucket it reads is whole.
 WITH reports AS (
   SELECT
     *,
@@ -24,10 +27,11 @@ WITH reports AS (
       r'^(.+?)(?:-[0-9]{5}-[a-z0-9]{3}|-[bcdfghjklmnpqrstvwxz2456789]{6,10}-[bcdfghjklmnpqrstvwxz2456789]{5}|-[bcdfghjklmnpqrstvwxz2456789]{5}|-[0-9]+)?$'
     ) AS sender_prefix
   FROM {{dataset}}.status
+  WHERE `at` >= {{since}}
 )
 SELECT
   'sender_windows' AS fact,
-  '1' AS fact_version,
+  '2' AS fact_version,
   '{{project}}' AS project,
   kind,
   sender_prefix,

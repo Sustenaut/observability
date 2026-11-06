@@ -1,0 +1,16 @@
+id: slow_pages
+version: 1
+severity: warning
+summary: A warm sender took more than 5 seconds to answer a request in the last 6 minutes.
+lookback_minutes: 10
+query: |
+  SELECT
+    CONCAT(project, '/', sender_prefix) AS subject,
+    project,
+    sender_prefix,
+    MAX(page_ms_high) AS slowest_ms
+  FROM {{fact:sender_windows}}
+  WHERE kind = 'sender' AND bucket >= TIMESTAMP_SUB({{now}}, INTERVAL 6 MINUTE)
+    AND cold_start = FALSE
+  GROUP BY project, sender_prefix
+  HAVING MAX(page_ms_high) > 5000

@@ -13,8 +13,8 @@ Feature: The observability command
   Scenario: It lists the facts with their versions
     When I run observability with "facts"
     Then it succeeds
-    And it prints "sender_windows\tversion 1\treads status"
-    And it prints "call_rollups\tversion 1\treads calls"
+    And it prints "sender_windows\tversion 2\treads status"
+    And it prints "call_rollups\tversion 2\treads calls"
 
   Scenario: It prints a fact's query for the datasets configured
     Given OBSERVABILITY_DATASETS is "calls_example, calls_other"

@@ -1,0 +1,17 @@
+id: cold_start_share
+version: 1
+severity: info
+summary: The share of a sender's answering windows in the last day that began with a cold start.
+lookback_minutes: 1440
+query: |
+  SELECT
+    CONCAT(project, '/', sender_prefix) AS subject,
+    project,
+    sender_prefix,
+    COUNTIF(cold_start) AS cold_windows,
+    COUNT(*) AS windows,
+    ROUND(COUNTIF(cold_start) / COUNT(*), 3) AS share
+  FROM {{fact:sender_windows}}
+  WHERE kind = 'sender' AND page_count > 0
+  GROUP BY project, sender_prefix
+  HAVING COUNTIF(cold_start) > 0

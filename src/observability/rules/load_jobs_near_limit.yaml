@@ -1,0 +1,14 @@
+id: load_jobs_near_limit
+version: 1
+severity: warning
+summary: The ingest pod has used more than 1,200 of its 1,400 load jobs a table today.
+lookback_minutes: 10
+query: |
+  WITH windows AS (
+    SELECT *, ROW_NUMBER() OVER (PARTITION BY project ORDER BY bucket DESC) AS newest
+    FROM {{fact:sender_windows}}
+    WHERE kind = 'ingest'
+  )
+  SELECT project AS subject, bucket, jobs_today, status_jobs_today
+  FROM windows
+  WHERE newest = 1 AND GREATEST(IFNULL(jobs_today, 0), IFNULL(status_jobs_today, 0)) > 1200

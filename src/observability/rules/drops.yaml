@@ -1,0 +1,15 @@
+id: drops
+version: 1
+severity: warning
+summary: A sender dropped call records in the last 6 minutes.
+lookback_minutes: 10
+query: |
+  SELECT
+    CONCAT(project, '/', sender_prefix) AS subject,
+    project,
+    sender_prefix,
+    SUM(drops) AS dropped
+  FROM {{fact:sender_windows}}
+  WHERE kind = 'sender' AND bucket >= TIMESTAMP_SUB({{now}}, INTERVAL 6 MINUTE)
+  GROUP BY project, sender_prefix
+  HAVING SUM(drops) > 0

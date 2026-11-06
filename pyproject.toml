@@ -13,6 +13,14 @@ requires-python = ">=3.10"
 authors = [{ name = "David Schryer", email = "schryer@gmail.com" }]
 dependencies = []
 
+[project.optional-dependencies]
+# The rules and the evaluator: rules are YAML, and BigQuery is called through the
+# integrations library's Caller (its github-app extra signs Google's token).
+evaluator = [
+  "pyyaml",
+  "integrations[github-app] @ https://github.com/Sustenaut/integrations/releases/download/v0.13.0/integrations-0.13.0-py3-none-any.whl",
+]
+
 [project.urls]
 Repository = "https://github.com/Sustenaut/observability"
 
@@ -23,7 +31,7 @@ observability = "observability.cli:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-observability = ["facts/*.sql"]
+observability = ["facts/*.sql", "rules/*.yaml"]
 
 # `make functional` measures the suite, the `observability` processes it starts
 # included, into coverage/coverage.xml for SonarQube Cloud.

@@ -45,9 +45,9 @@ Feature: Facts from the call log
     When the fact "sender_windows" runs
     Then its rows are
       | fact           | fact_version | project | sender_prefix | bucket |
-      | sender_windows | 1            | example | app           | 10:00  |
-      | sender_windows | 1            | example | app           | 10:02  |
-      | sender_windows | 1            | other   | web           | 10:00  |
+      | sender_windows | 2            | example | app           | 10:00  |
+      | sender_windows | 2            | example | app           | 10:02  |
+      | sender_windows | 2            | other   | web           | 10:00  |
 
   Scenario: A fact file's header must name it
     When a fact file "windows" reads "-- fact: other\n-- version: 1\n-- reads: status\nSELECT 1"

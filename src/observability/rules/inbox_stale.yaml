@@ -1,0 +1,14 @@
+id: inbox_stale
+version: 1
+severity: warning
+summary: A file has waited more than 10 minutes in a project's inbox.
+lookback_minutes: 10
+query: |
+  WITH windows AS (
+    SELECT *, ROW_NUMBER() OVER (PARTITION BY project ORDER BY bucket DESC) AS newest
+    FROM {{fact:sender_windows}}
+    WHERE kind = 'ingest'
+  )
+  SELECT project AS subject, bucket, waiting_files, waiting_oldest_seconds
+  FROM windows
+  WHERE newest = 1 AND waiting_oldest_seconds > 600
