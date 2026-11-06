@@ -5,7 +5,7 @@ off the server it watches, so it still reports when that server is down.
 A target is down only after two runs in a row have failed, and each run
 tries a failing target twice before counting it. The run's state, each
 target's failures in a row and whether it is down, is kept between runs in
-a JSON file the workflow caches.
+uptime-state.json in the working directory, which the workflow caches.
 
 Which sites are probed is configuration, never in this repository:
 UPTIME_TARGETS is a JSON list of {"name", "url", "expect_status"}. Going
@@ -13,7 +13,7 @@ down and recovering are posted to UPTIME_SLACK_WEBHOOK, a Slack incoming
 webhook, directly: the integrations service, which posts for everything
 else, runs on the server being watched.
 
-    python -m observability.uptime --state uptime-state.json
+    python -m observability.uptime
 """
 
 from __future__ import annotations
@@ -30,6 +30,8 @@ from pathlib import Path
 
 TARGETS = "UPTIME_TARGETS"
 WEBHOOK = "UPTIME_SLACK_WEBHOOK"
+# Kept between runs, always here: no path to it is taken from outside.
+STATE = Path("uptime-state.json")
 # Runs in a row that must fail before a target is down.
 DOWN_AFTER = 2
 USER_AGENT = "Sustenaut observability uptime probe"
@@ -155,7 +157,6 @@ def read_state(path: Path) -> dict:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="observability.uptime", description=__doc__.split("\n\n")[0])
-    parser.add_argument("--state", type=Path, required=True, help="the JSON file kept between runs")
     parser.add_argument("--timeout", type=float, default=10.0, help="seconds to wait for an answer (default 10)")
     parser.add_argument("--pause", type=float, default=5.0, help="seconds before trying a failing target again (default 5)")
     args = parser.parse_args(argv)
@@ -165,8 +166,8 @@ def main(argv: list[str] | None = None) -> int:
         print(f"uptime: {error}", file=sys.stderr)
         return 2
     results = [probe(target, args.timeout, args.pause) for target in listed]
-    state, changes = advance(read_state(args.state), results)
-    args.state.write_text(json.dumps(state, indent=1, sort_keys=True) + "\n")
+    state, changes = advance(read_state(STATE), results)
+    STATE.write_text(json.dumps(state, indent=1, sort_keys=True) + "\n")
     for result in results:
         mark = "up" if result.up else ("DOWN" if state[result.target.name]["down"] else "failing")
         print(f"{mark}\t{result.target.name}\t{result.detail}")

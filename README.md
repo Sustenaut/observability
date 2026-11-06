@@ -26,7 +26,7 @@ report; this is the one check that doesn't depend on them.
 - **Down** means two runs in a row failed: no answer within 10 s, or a
   status other than the one expected, each run trying a failing target
   twice. The state between runs, each target's failures in a row, is a
-  small file in the Actions cache. If the cache is lost, the next run
+  small file, `uptime-state.json` in the working directory, kept in the Actions cache. If the cache is lost, the next run
   starts afresh.
 - **Alerts:** going down and recovering are posted to the
   `UPTIME_SLACK_WEBHOOK` secret, a Slack incoming webhook, directly. Every
@@ -38,7 +38,7 @@ report; this is the one check that doesn't depend on them.
 
 ```sh
 UPTIME_TARGETS='[{"name": "example", "url": "https://example.test/healthz"}]' \
-  PYTHONPATH=src python3 -m observability.uptime --state uptime-state.json
+  PYTHONPATH=src python3 -m observability.uptime
 ```
 
 GitHub turns off a public repository's scheduled workflows after 60 days

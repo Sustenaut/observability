@@ -34,7 +34,7 @@ jobs:
           key: uptime-state-${{ github.run_id }}-${{ github.run_attempt }}
           restore-keys: uptime-state-
       - name: probe the targets
-        run: PYTHONPATH=src python3 -m observability.uptime --state uptime-state.json
+        run: PYTHONPATH=src python3 -m observability.uptime
         env:
           UPTIME_TARGETS: ${{ vars.UPTIME_TARGETS }}
           UPTIME_SLACK_WEBHOOK: ${{ secrets.UPTIME_SLACK_WEBHOOK }}

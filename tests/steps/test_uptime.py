@@ -73,7 +73,7 @@ def site():
 def probe(site, tmp_path: Path) -> dict:
     env = {k: v for k, v in os.environ.items() if not k.startswith("UPTIME_")}
     env["UPTIME_SLACK_WEBHOOK"] = f"{site['base']}/hook"
-    return {"env": env, "targets": [], "state": tmp_path / "state.json"}
+    return {"env": env, "targets": [], "state": tmp_path / "uptime-state.json", "cwd": tmp_path}
 
 
 @given(parsers.parse('a site that answers "/ok" with 200, "/broken" with 503 and "/moved" with a redirect'))
@@ -136,9 +136,8 @@ def runs(probe: dict) -> None:
     probe["env"]["UPTIME_TARGETS"] = probe.get("raw", json.dumps(probe["targets"]))
     probe["env"]["PYTHONPATH"] = str(ROOT / "src")
     probe["done"] = subprocess.run(
-        [sys.executable, "-m", "observability.uptime", "--state", str(probe["state"]),
-         "--timeout", "0.5", "--pause", "0"],
-        capture_output=True, text=True, check=False, env=probe["env"])
+        [sys.executable, "-m", "observability.uptime", "--timeout", "0.5", "--pause", "0"],
+        capture_output=True, text=True, check=False, env=probe["env"], cwd=probe["cwd"])
 
 
 @then("it succeeds")
