@@ -39,6 +39,14 @@
         ".github/workflows/main.yml"
       ],
       "mode": "required"
+    },
+    {
+      "plugin": "storage.api",
+      "paths": [
+        "src/observability/store.py",
+        "src/observability/cli.py"
+      ],
+      "mode": "required"
     }
   ],
   "exclude": [
