@@ -31,7 +31,8 @@ from dataclasses import dataclass
 from pathlib import Path
 
 TARGETS = "UPTIME_TARGETS"
-TOKEN = "SUSTENAUT_SLACK_BOT_TOKEN"
+# The environment variable that holds the bot's credential (its name, not the value).
+BOT_VARIABLE = "SUSTENAUT_SLACK_BOT_TOKEN"
 CHANNEL = "UPTIME_SLACK_CHANNEL"
 # Slack's chat.postMessage; the suite points it at a local stand-in.
 SLACK_API = "UPTIME_SLACK_API"
@@ -209,9 +210,9 @@ def main(argv: list[str] | None = None) -> int:
         if unrouted:
             print(f"uptime: no {CHANNEL}, and no channel of their own, for {', '.join(unrouted)}, "
                   "so nothing was posted for them", file=sys.stderr)
-        token = os.environ.get(TOKEN, "")
+        token = os.environ.get(BOT_VARIABLE, "")
         if groups and not token:
-            print(f"uptime: no {TOKEN}, so nothing was posted to Slack", file=sys.stderr)
+            print(f"uptime: no {BOT_VARIABLE}, so nothing was posted to Slack", file=sys.stderr)
         elif groups:
             for channel, group in groups.items():
                 try:
