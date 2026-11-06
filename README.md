@@ -22,8 +22,7 @@ to the query it came from.
 | Fact | Reads | One row per |
 |---|---|---|
 | `sender_windows` | `status` | kind, sender prefix and two-minute bucket |
-| `plugin_rollups` | `calls` | app, plugin, operation and two-minute bucket |
-| `request_totals` | `calls` | the same, for a service's own timing of a whole request |
+| `call_rollups` | `calls` | scope, app, plugin, operation and two-minute bucket |
 
 - **`sender_windows`** names a sender by its prefix, the pod or Cloud Run
   revision name without its generated suffix, since that suffix changes with
@@ -34,10 +33,11 @@ to the query it came from.
   fields: what waits, what was rejected and loaded, the day's load jobs,
   whether storage answered, and the problems. A bucket with no row is a
   sender's silence; the fact records only what was reported.
-- **`plugin_rollups`** counts each app's calls, its errors by outcome
+- **`call_rollups`** counts each app's calls, its errors by outcome
   (`refused`, `unavailable`) and retries, with the median and slowest latency.
-  The `service-total` and `client-total` operations time a whole request, not
-  a call to an outside service, so they are in **`request_totals`** instead.
+  Its `scope` is `plugin` for calls to outside services and `request_total`
+  for the `service-total` and `client-total` operations, which time a whole
+  request: a rule about plugins reads only `scope = 'plugin'`.
 
 Which datasets are read is configuration: `OBSERVABILITY_DATASETS` lists them,
 comma-separated, and a dataset `calls_<project>` is that project's.

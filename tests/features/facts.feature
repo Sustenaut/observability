@@ -29,21 +29,15 @@ Feature: Facts from the call log
       | ingest | ingest        | 10:00  | 2       |       | false      | 2            | 1            | 5             | 9000          | true         | 210                    | 2              | 3700                    | 41         | 42                | storage did not answer |
       | sender | ingest        | 10:00  | 1       | 7     |            |              |              |               |               |              |                        |                |                         |            |                   |                        |
 
-  Scenario: Plugin rollups count calls, errors by outcome and latency, without request totals
+  Scenario: Call rollups count calls, errors by outcome and latency, with request totals in their own scope
     Given the dataset "calls_example" holds "calls"
-    When the fact "plugin_rollups" runs
+    When the fact "call_rollups" runs
     Then its rows are
-      | app     | plugin         | operation | bucket | calls | errors | refused | unavailable | retries | latency_ms_median | latency_ms_max |
-      | service | github.edit-pr | edit      | 10:00  | 5     | 2      | 1       | 1           | 2       | 200               | 900            |
-      | service | slack.post     | post      | 10:02  | 1     | 0      | 0       | 0           | 0       | 50                | 50             |
-
-  Scenario: Request totals are kept apart
-    Given the dataset "calls_example" holds "calls"
-    When the fact "request_totals" runs
-    Then its rows are
-      | operation     | bucket | calls | latency_ms_max |
-      | client-total  | 10:00  | 1     | 1500           |
-      | service-total | 10:00  | 1     | 1200           |
+      | scope         | app     | plugin         | operation     | bucket | calls | errors | refused | unavailable | retries | latency_ms_median | latency_ms_max |
+      | plugin        | service | github.edit-pr | edit          | 10:00  | 5     | 2      | 1       | 1           | 2       | 200               | 900            |
+      | plugin        | service | slack.post     | post          | 10:02  | 1     | 0      | 0       | 0           | 0       | 50                | 50             |
+      | request_total | service | github.edit-pr | client-total  | 10:00  | 1     | 0      | 0       | 0           | 0       | 1500              | 1500           |
+      | request_total | service | github.edit-pr | service-total | 10:00  | 1     | 0      | 0       | 0           | 0       | 1200              | 1200           |
 
   Scenario: Every row names its fact, version and project, across datasets
     Given the dataset "calls_example" holds "split-window"

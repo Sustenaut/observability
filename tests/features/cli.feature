@@ -14,7 +14,7 @@ Feature: The observability command
     When I run observability with "facts"
     Then it succeeds
     And it prints "sender_windows\tversion 1\treads status"
-    And it prints "plugin_rollups\tversion 1\treads calls"
+    And it prints "call_rollups\tversion 1\treads calls"
 
   Scenario: It prints a fact's query for the datasets configured
     Given OBSERVABILITY_DATASETS is "calls_example, calls_other"
@@ -25,7 +25,7 @@ Feature: The observability command
 
   Scenario: A dataset given on the command line wins
     Given OBSERVABILITY_DATASETS is "calls_example"
-    When I run observability with "facts plugin_rollups --dataset calls_given"
+    When I run observability with "facts call_rollups --dataset calls_given"
     Then it succeeds
     And it prints "FROM calls_given.calls"
 
@@ -39,4 +39,4 @@ Feature: The observability command
 
   Scenario: An unknown fact is named
     When I run observability with "facts nope --dataset calls_example"
-    Then it fails with "no fact nope; there are plugin_rollups, request_totals, sender_windows"
+    Then it fails with "no fact nope; there are call_rollups, sender_windows"
