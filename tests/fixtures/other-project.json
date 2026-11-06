@@ -1,0 +1,5 @@
+{
+  "status": [
+    {"sender": "web-00003-k2m", "at": "10:00:05", "calls": 1, "drops": 0, "buffer_size": 1, "storage_failures": 0}
+  ]
+}

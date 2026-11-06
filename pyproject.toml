@@ -22,6 +22,9 @@ observability = "observability.cli:main"
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.package-data]
+observability = ["facts/*.sql"]
+
 # `make functional` measures the suite, the `observability` processes it starts
 # included, into coverage/coverage.xml for SonarQube Cloud.
 [tool.coverage.run]

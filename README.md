@@ -11,6 +11,46 @@ another service's job.
 This repository is code only. Which services and datasets it reads is
 configuration, given where it runs, so nothing here names them.
 
+## Facts
+
+A fact is what the call log says, before any rule judges it: one versioned
+BigQuery query under `src/observability/facts/`, whose header names it and
+gives its version. The version goes up whenever a change could change a row,
+and every row carries `fact` and `fact_version`, so each signal can be traced
+to the query it came from.
+
+| Fact | Reads | One row per |
+|---|---|---|
+| `sender_windows` | `status` | kind, sender prefix and two-minute bucket |
+| `call_rollups` | `calls` | scope, app, plugin, operation and two-minute bucket |
+
+- **`sender_windows`** names a sender by its prefix, the pod or Cloud Run
+  revision name without its generated suffix, since that suffix changes with
+  each pod and revision. Rows of one bucket are merged: counts summed, the
+  quickest and slowest answers kept, the median a count-weighted mean of the
+  rows' medians (`page_ms_median_approximate` when more than one row
+  answered), the largest buffer and any cold start. Ingest rows keep their own
+  fields: what waits, what was rejected and loaded, the day's load jobs,
+  whether storage answered, and the problems. A bucket with no row is a
+  sender's silence; the fact records only what was reported.
+- **`call_rollups`** counts each app's calls, its errors by outcome
+  (`refused`, `unavailable`) and retries, with the median and slowest latency.
+  Its `scope` is `plugin` for calls to outside services and `request_total`
+  for the `service-total` and `client-total` operations, which time a whole
+  request: a rule about plugins reads only `scope = 'plugin'`.
+
+Which datasets are read is configuration: `OBSERVABILITY_DATASETS` lists them,
+comma-separated, and a dataset `calls_<project>` is that project's.
+
+```sh
+bin/observability facts                                 # each fact and its version
+bin/observability facts sender_windows --dataset calls_example
+```
+
+prints the query, for every dataset given, as one `UNION ALL`. The suite runs
+each fact on fixture rows in DuckDB, its SQL put in DuckDB's dialect by
+sqlglot, so CI needs no BigQuery; `tests/schemas/` holds the call log's
+columns.
 ## Uptime
 
 `.github/workflows/uptime.yml` probes each site every five minutes from
@@ -40,6 +80,18 @@ report; this is the one check that doesn't depend on them.
 UPTIME_TARGETS='[{"name": "example", "url": "https://example.test/healthz"}]' \
   PYTHONPATH=src python3 -m observability.uptime
 ```
+
+**Setting it up.** The webhook and the targets live in Bitwarden, in the
+Sustenaut project, as `uptime-slack-webhook` and `uptime-targets`.
+`pubkit.json`'s `secrets` list sends them here, as the secret
+`UPTIME_SLACK_WEBHOOK` and the variable `UPTIME_TARGETS`:
+
+```sh
+./with-secrets ./pubkit app-secrets --check   # names and lengths only; sends nothing
+./with-secrets ./pubkit app-secrets
+```
+
+To change the targets, edit `uptime-targets` in Bitwarden and run it again.
 
 GitHub turns off a public repository's scheduled workflows after 60 days
 without activity in it. If it does, re-enable the workflow from the

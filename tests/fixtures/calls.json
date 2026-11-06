@@ -1,0 +1,12 @@
+{
+  "calls": [
+    {"app": "service", "plugin": "github.edit-pr", "operation": "edit", "at": "10:00:10", "latency_ms": 100},
+    {"app": "service", "plugin": "github.edit-pr", "operation": "edit", "at": "10:00:20", "latency_ms": 300, "outcome": "refused", "status": 403},
+    {"app": "service", "plugin": "github.edit-pr", "operation": "edit", "at": "10:00:30", "latency_ms": 200},
+    {"app": "service", "plugin": "github.edit-pr", "operation": "edit", "at": "10:01:00", "latency_ms": 900, "outcome": "unavailable", "retries": 2},
+    {"app": "service", "plugin": "github.edit-pr", "operation": "edit", "at": "10:01:30", "latency_ms": 150},
+    {"app": "service", "plugin": "slack.post", "operation": "post", "at": "10:02:10", "latency_ms": 50},
+    {"app": "service", "plugin": "github.edit-pr", "operation": "service-total", "at": "10:00:40", "latency_ms": 1200},
+    {"app": "service", "plugin": "github.edit-pr", "operation": "client-total", "at": "10:00:50", "latency_ms": 1500}
+  ]
+}

@@ -1,0 +1,58 @@
+[
+ {
+  "name": "at",
+  "type": "TIMESTAMP"
+ },
+ {
+  "name": "repo",
+  "type": "STRING"
+ },
+ {
+  "name": "app",
+  "type": "STRING"
+ },
+ {
+  "name": "plugin",
+  "type": "STRING"
+ },
+ {
+  "name": "operation",
+  "type": "STRING"
+ },
+ {
+  "name": "request_id",
+  "type": "STRING"
+ },
+ {
+  "name": "latency_ms",
+  "type": "INTEGER"
+ },
+ {
+  "name": "status",
+  "type": "INTEGER"
+ },
+ {
+  "name": "outcome",
+  "type": "STRING"
+ },
+ {
+  "name": "retries",
+  "type": "INTEGER"
+ },
+ {
+  "name": "bytes_in",
+  "type": "INTEGER"
+ },
+ {
+  "name": "bytes_out",
+  "type": "INTEGER"
+ },
+ {
+  "name": "mode",
+  "type": "STRING"
+ },
+ {
+  "name": "route",
+  "type": "STRING"
+ }
+]

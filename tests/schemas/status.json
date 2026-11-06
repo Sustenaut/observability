@@ -1,0 +1,114 @@
+[
+ {
+  "name": "at",
+  "type": "TIMESTAMP"
+ },
+ {
+  "name": "kind",
+  "type": "STRING"
+ },
+ {
+  "name": "sender",
+  "type": "STRING"
+ },
+ {
+  "name": "version",
+  "type": "STRING"
+ },
+ {
+  "name": "cycle_start",
+  "type": "TIMESTAMP"
+ },
+ {
+  "name": "cycle_end",
+  "type": "TIMESTAMP"
+ },
+ {
+  "name": "calls",
+  "type": "INTEGER"
+ },
+ {
+  "name": "drops",
+  "type": "INTEGER"
+ },
+ {
+  "name": "buffer_size",
+  "type": "INTEGER"
+ },
+ {
+  "name": "storage_failures",
+  "type": "INTEGER"
+ },
+ {
+  "name": "storage_ok",
+  "type": "BOOLEAN"
+ },
+ {
+  "name": "loaded_files",
+  "type": "INTEGER"
+ },
+ {
+  "name": "rejected_now",
+  "type": "INTEGER"
+ },
+ {
+  "name": "inbox_files",
+  "type": "INTEGER"
+ },
+ {
+  "name": "inbox_bytes",
+  "type": "INTEGER"
+ },
+ {
+  "name": "inbox_more",
+  "type": "BOOLEAN"
+ },
+ {
+  "name": "inbox_oldest_seconds",
+  "type": "INTEGER"
+ },
+ {
+  "name": "rejected_files",
+  "type": "INTEGER"
+ },
+ {
+  "name": "rejected_more",
+  "type": "BOOLEAN"
+ },
+ {
+  "name": "rejected_oldest_seconds",
+  "type": "INTEGER"
+ },
+ {
+  "name": "jobs_today",
+  "type": "INTEGER"
+ },
+ {
+  "name": "status_jobs_today",
+  "type": "INTEGER"
+ },
+ {
+  "name": "problems",
+  "type": "STRING"
+ },
+ {
+  "name": "page_count",
+  "type": "INTEGER"
+ },
+ {
+  "name": "page_ms_low",
+  "type": "INTEGER"
+ },
+ {
+  "name": "page_ms_median",
+  "type": "INTEGER"
+ },
+ {
+  "name": "page_ms_high",
+  "type": "INTEGER"
+ },
+ {
+  "name": "cold_start",
+  "type": "BOOLEAN"
+ }
+]
