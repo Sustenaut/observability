@@ -8,9 +8,11 @@ target's failures in a row and whether it is down, is kept between runs in
 uptime-state.json in the working directory, which the workflow caches.
 
 Which sites are probed is configuration, never in this repository:
-UPTIME_TARGETS is a JSON list of {"name", "url", "expect_status"}. Going
-down and recovering are posted to UPTIME_SLACK_WEBHOOK, a Slack incoming
-webhook, directly: the integrations service, which posts for everything
+UPTIME_TARGETS is a JSON list of {"name", "url", "expect_status",
+"channel"}. Going down and recovering are posted by the Sustenaut Slack bot
+(SUSTENAUT_SLACK_BOT_TOKEN) to the target's channel, or, for a target with
+none, to UPTIME_SLACK_CHANNEL; each is a channel's or a person's id. It
+posts directly: the integrations service, which posts for everything
 else, runs on the server being watched.
 
     python -m observability.uptime
@@ -29,9 +31,14 @@ from dataclasses import dataclass
 from pathlib import Path
 
 TARGETS = "UPTIME_TARGETS"
-WEBHOOK = "UPTIME_SLACK_WEBHOOK"
+TOKEN = "SUSTENAUT_SLACK_BOT_TOKEN"
+CHANNEL = "UPTIME_SLACK_CHANNEL"
+# Slack's chat.postMessage; the suite points it at a local stand-in.
+SLACK_API = "UPTIME_SLACK_API"
+POST_MESSAGE = "https://slack.com/api/chat.postMessage"
 # Kept between runs, always here: no path to it is taken from outside.
 STATE = Path("uptime-state.json")
+KEYS = {"name", "url", "expect_status", "channel"}
 # Runs in a row that must fail before a target is down.
 DOWN_AFTER = 2
 USER_AGENT = "Sustenaut observability uptime probe"
@@ -42,6 +49,8 @@ class Target:
     name: str
     url: str
     expect_status: int = 200
+    # Where its alerts go; None for UPTIME_SLACK_CHANNEL.
+    channel: str | None = None
 
 
 @dataclass(frozen=True)
@@ -71,14 +80,18 @@ def targets(text: str) -> list[Target]:
         raise ValueError(f"{TARGETS} must be a JSON list of targets")
     found = []
     for entry in listed:
-        if not isinstance(entry, dict) or set(entry) - {"name", "url", "expect_status"}:
-            raise ValueError(f'{TARGETS}: each target is {{"name", "url", "expect_status"}}, not {json.dumps(entry)}')
+        if not isinstance(entry, dict) or set(entry) - KEYS:
+            raise ValueError(f'{TARGETS}: each target is {{"name", "url", "expect_status", "channel"}}, '
+                             f'not {json.dumps(entry)}')
         name, url, status = entry.get("name"), entry.get("url"), entry.get("expect_status", 200)
         if not isinstance(name, str) or not name or not isinstance(url, str) or not url.startswith(("https://", "http://")):
             raise ValueError(f"{TARGETS}: a target needs a name and an http(s) url: {json.dumps(entry)}")
         if not isinstance(status, int) or not 100 <= status <= 599:
             raise ValueError(f"{TARGETS}: {name}'s expect_status must be an HTTP status")
-        found.append(Target(name, url, status))
+        channel = entry.get("channel")
+        if channel is not None and (not isinstance(channel, str) or not channel.strip()):
+            raise ValueError(f"{TARGETS}: {name}'s channel must be a channel's or a person's id")
+        found.append(Target(name, url, status, channel))
     if len({t.name for t in found}) != len(found):
         raise ValueError(f"{TARGETS} names a target twice")
     return found
@@ -136,13 +149,32 @@ def message(changes: list[tuple[str, Result]]) -> str:
     return "\n".join(lines)
 
 
-def post(webhook: str, text: str, timeout: float) -> None:
-    """Post to a Slack incoming webhook."""
-    body = json.dumps({"text": text}).encode()
-    request = urllib.request.Request(webhook, data=body, method="POST",
-                                     headers={"Content-Type": "application/json", "User-Agent": USER_AGENT})
+def by_channel(changes: list[tuple[str, Result]], default: str) -> tuple[dict, list[str]]:
+    """The changes, grouped by where each is posted: its target's channel, or
+    the default. The names of those with neither go apart."""
+    groups: dict[str, list[tuple[str, Result]]] = {}
+    unrouted = []
+    for change in changes:
+        channel = change[1].target.channel or default
+        if channel:
+            groups.setdefault(channel, []).append(change)
+        else:
+            unrouted.append(change[1].target.name)
+    return groups, unrouted
+
+
+def post(token: str, channel: str, text: str, timeout: float) -> None:
+    """Post as the bot. Slack answers 200 to a post it refuses, with "ok"
+    false and its reason, so the answer is read, not just its status."""
+    body = json.dumps({"channel": channel, "text": text}).encode()
+    request = urllib.request.Request(
+        os.environ.get(SLACK_API, POST_MESSAGE), data=body, method="POST",
+        headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json; charset=utf-8",
+                 "User-Agent": USER_AGENT})
     with _OPENER.open(request, timeout=timeout) as response:
-        response.read()
+        answer = json.loads(response.read() or b"{}")
+    if not answer.get("ok"):
+        raise OSError(f"Slack refused the post: {answer.get('error', 'no reason given')}")
 
 
 def read_state(path: Path) -> dict:
@@ -173,15 +205,20 @@ def main(argv: list[str] | None = None) -> int:
         print(f"{mark}\t{result.target.name}\t{result.detail}")
     failed = False
     if changes:
-        webhook = os.environ.get(WEBHOOK, "")
-        if not webhook:
-            print(f"uptime: no {WEBHOOK}, so nothing was posted to Slack", file=sys.stderr)
-        else:
-            try:
-                post(webhook, message(changes), args.timeout)
-            except (urllib.error.URLError, OSError) as error:
-                print(f"uptime: posting to Slack failed: {error}", file=sys.stderr)
-                failed = True
+        groups, unrouted = by_channel(changes, os.environ.get(CHANNEL, ""))
+        if unrouted:
+            print(f"uptime: no {CHANNEL}, and no channel of their own, for {', '.join(unrouted)}, "
+                  "so nothing was posted for them", file=sys.stderr)
+        token = os.environ.get(TOKEN, "")
+        if groups and not token:
+            print(f"uptime: no {TOKEN}, so nothing was posted to Slack", file=sys.stderr)
+        elif groups:
+            for channel, group in groups.items():
+                try:
+                    post(token, channel, message(group), args.timeout)
+                except (urllib.error.URLError, OSError, ValueError) as error:
+                    print(f"uptime: posting to Slack failed, for {channel}: {error}", file=sys.stderr)
+                    failed = True
     down = sorted(name for name, entry in state.items() if entry["down"])
     if down:
         print(f"uptime: down: {', '.join(down)}", file=sys.stderr)

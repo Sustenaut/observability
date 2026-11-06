@@ -1,5 +1,5 @@
 """Steps running the uptime probe, `python -m observability.uptime`, against a
-local site and a local stand-in for Slack's webhook."""
+local site and a local stand-in for Slack's chat.postMessage."""
 
 from __future__ import annotations
 
@@ -22,21 +22,22 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 class Site(BaseHTTPRequestHandler):
-    """/ok, /broken, /moved, /slow, /flaky; POST /hook is Slack."""
+    """/ok, /broken, /moved, /slow, /flaky; POST /api/chat.postMessage is Slack."""
 
-    posts: list[str]
+    posts: list[dict]
     flaky: dict
-    hook_status: int
+    slack: dict
 
     def log_message(self, *args) -> None:  # noqa: ANN002
         pass
 
-    def answer(self, status: int, headers: dict | None = None) -> None:
+    def answer(self, status: int, headers: dict | None = None, body: bytes = b"") -> None:
         self.send_response(status)
         for key, value in (headers or {}).items():
             self.send_header(key, value)
-        self.send_header("Content-Length", "0")
+        self.send_header("Content-Length", str(len(body)))
         self.end_headers()
+        self.wfile.write(body)
 
     def do_GET(self) -> None:  # noqa: N802
         if self.path == "/ok":
@@ -54,13 +55,14 @@ class Site(BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:  # noqa: N802
         length = int(self.headers["Content-Length"])
-        self.posts.append(json.loads(self.rfile.read(length))["text"])
-        self.answer(self.hook_status)
+        self.posts.append({**json.loads(self.rfile.read(length)), "auth": self.headers["Authorization"]})
+        self.answer(self.slack["status"], body=self.slack["body"])
 
 
 @pytest.fixture
 def site():
-    handler = type("Handler", (Site,), {"posts": [], "flaky": {"n": 0}, "hook_status": 200})
+    handler = type("Handler", (Site,), {"posts": [], "flaky": {"n": 0},
+                                         "slack": {"status": 200, "body": b'{"ok": true}'}})
     server = ThreadingHTTPServer(("127.0.0.1", 0), handler)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
@@ -72,7 +74,10 @@ def site():
 @pytest.fixture
 def probe(site, tmp_path: Path) -> dict:
     env = {k: v for k, v in os.environ.items() if not k.startswith("UPTIME_")}
-    env["UPTIME_SLACK_WEBHOOK"] = f"{site['base']}/hook"
+    env = {k: v for k, v in env.items() if k != "SUSTENAUT_SLACK_BOT_TOKEN"}
+    env["SUSTENAUT_SLACK_BOT_TOKEN"] = "xoxb-test"
+    env["UPTIME_SLACK_CHANNEL"] = "C0TEST"
+    env["UPTIME_SLACK_API"] = f"{site['base']}/api/chat.postMessage"
     return {"env": env, "targets": [], "state": tmp_path / "uptime-state.json", "cwd": tmp_path}
 
 
@@ -81,8 +86,11 @@ def a_site(site) -> None:
     pass
 
 
-def add(site, probe: dict, name: str, path: str, status: int = 200) -> None:
-    probe["targets"].append({"name": name, "url": f"{site['base']}{path}", "expect_status": status})
+def add(site, probe: dict, name: str, path: str, status: int = 200, channel: str | None = None) -> None:
+    target = {"name": name, "url": f"{site['base']}{path}", "expect_status": status}
+    if channel:
+        target["channel"] = channel
+    probe["targets"].append(target)
 
 
 @given(parsers.parse('the targets "{a}" at "{a_path}" and "{b}" at "{b_path}"'))
@@ -91,9 +99,10 @@ def two_targets(site, probe: dict, a: str, a_path: str, b: str, b_path: str) -> 
     add(site, probe, b, b_path)
 
 
-@given(parsers.re(r'the target "(?P<name>[^"]+)" at "(?P<path>[^"]+)"(?: expecting (?P<status>\d+))?$'))
-def one_target(site, probe: dict, name: str, path: str, status: str | None) -> None:
-    add(site, probe, name, path, int(status or 200))
+@given(parsers.re(r'the target "(?P<name>[^"]+)" at "(?P<path>[^"]+)"'
+                  r'(?: expecting (?P<status>\d+))?(?: alerting "(?P<channel>[^"]+)")?$'))
+def one_target(site, probe: dict, name: str, path: str, status: str | None, channel: str | None) -> None:
+    add(site, probe, name, path, int(status or 200), channel)
 
 
 @given(parsers.parse('the target "{name}" at a port nothing listens on'))
@@ -116,14 +125,24 @@ def state_reads(probe: dict, text: str) -> None:
     probe["state"].write_text(text)
 
 
-@given("no Slack webhook")
-def no_webhook(probe: dict) -> None:
-    del probe["env"]["UPTIME_SLACK_WEBHOOK"]
+@given(parsers.parse("no {name}"))
+def unset(probe: dict, name: str) -> None:
+    del probe["env"][name]
 
 
-@given(parsers.parse("a Slack webhook that answers {status:d}"))
-def webhook_answers(site, status: int) -> None:
-    site["handler"].hook_status = status
+@given(parsers.parse("Slack answers {status:d}"))
+def slack_status(site, status: int) -> None:
+    site["handler"].slack["status"] = status
+
+
+@given(parsers.parse('Slack refuses the post with "{error}"'))
+def slack_refuses(site, error: str) -> None:
+    site["handler"].slack["body"] = json.dumps({"ok": False, "error": error}).encode()
+
+
+@given("Slack answers with no reason")
+def slack_no_reason(site) -> None:
+    site["handler"].slack["body"] = b"{}"
 
 
 @given(parsers.parse("UPTIME_TARGETS is '{value}'"))
@@ -184,4 +203,16 @@ def nothing_posted(site) -> None:
 
 @then(parsers.parse('Slack was told "{text}"'))
 def slack_told(site, text: str) -> None:
-    assert any(text in post for post in site["handler"].posts), site["handler"].posts
+    told_in(site, text, "C0TEST")
+
+
+@then(parsers.parse('Slack was told "{text}" in "{channel}"'))
+def told_in(site, text: str, channel: str) -> None:
+    posts = site["handler"].posts
+    assert any(text in post["text"] and post["channel"] == channel for post in posts), posts
+    assert all(post["auth"] == "Bearer xoxb-test" for post in posts), posts
+
+
+@then(parsers.parse("Slack was posted to {count:d} times"))
+def posted_times(site, count: int) -> None:
+    assert len(site["handler"].posts) == count, site["handler"].posts

@@ -1,8 +1,9 @@
 # The uptime probe (src/observability/uptime.py), from outside the server it
 # watches: every five minutes, each target in the repository variable
 # UPTIME_TARGETS. A target is down after two runs in a row fail; going down
-# and recovering are posted to the UPTIME_SLACK_WEBHOOK secret, and a run
-# fails while any target is down, so GitHub's failure email is the backup.
+# and recovering are posted by the Sustenaut Slack bot to the
+# UPTIME_SLACK_CHANNEL variable's channel, and a run fails while any target
+# is down, so GitHub's failure email is the backup.
 # The state between runs is a small file in the Actions cache.
 name: uptime
 
@@ -37,7 +38,8 @@ jobs:
         run: PYTHONPATH=src python3 -m observability.uptime
         env:
           UPTIME_TARGETS: ${{ vars.UPTIME_TARGETS }}
-          UPTIME_SLACK_WEBHOOK: ${{ secrets.UPTIME_SLACK_WEBHOOK }}
+          UPTIME_SLACK_CHANNEL: ${{ vars.UPTIME_SLACK_CHANNEL }}
+          SUSTENAUT_SLACK_BOT_TOKEN: ${{ secrets.SUSTENAUT_SLACK_BOT_TOKEN }}
       - name: this run's state
         if: ${{ always() && hashFiles('uptime-state.json') != '' }}
         uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
