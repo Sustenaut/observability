@@ -1,0 +1,12 @@
+# Observability's evaluator on the shared k3s server, namespace observability.
+# Rendered by .github/workflows/deploy.yml, which sets the image it just built and the
+# settings a deployment names, and applied by sustenaut-deploy on the server.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: observability
+resources:
+  - service-accounts.yaml
+  - evaluator.yaml
+images:
+  - name: ghcr.io/sustenaut/observability
+    newTag: unset

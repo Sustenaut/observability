@@ -1,0 +1,72 @@
+# The evaluator, every two minutes: every rule against BigQuery, its signals written to
+# storage's signals tenant. One run at a time, and one that overruns its two minutes is
+# stopped, so the next starts from what is loaded. Its settings are the ConfigMap
+# evaluator-settings, which deploy.yml renders from the repository's variables; its
+# BigQuery key is the Secret admin/go-live.sh puts in.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: evaluator
+spec:
+  schedule: "*/2 * * * *"
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 60
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 5
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      activeDeadlineSeconds: 110
+      ttlSecondsAfterFinished: 3600
+      template:
+        metadata:
+          labels:
+            app: observability-evaluator
+        spec:
+          restartPolicy: Never
+          serviceAccountName: evaluator
+          automountServiceAccountToken: false
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            fsGroup: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: evaluator
+              image: ghcr.io/sustenaut/observability
+              command: ["observability", "evaluate"]
+              env:
+                - name: OBSERVABILITY_STORAGE_URL
+                  value: https://storage.sustenaut.eu
+                - name: OBSERVABILITY_BIGQUERY_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: evaluator-bigquery-key
+                      key: key.json
+              envFrom:
+                - configMapRef:
+                    name: evaluator-settings
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: [ALL]
+              resources:
+                requests:
+                  cpu: 25m
+                  memory: 96Mi
+                limits:
+                  memory: 256Mi
+              volumeMounts:
+                - name: storage-token
+                  mountPath: /var/run/secrets/storage.sustenaut.eu
+                  readOnly: true
+          volumes:
+            - name: storage-token
+              projected:
+                sources:
+                  - serviceAccountToken:
+                      audience: storage.sustenaut.eu
+                      path: token
+                      expirationSeconds: 600

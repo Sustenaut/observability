@@ -86,19 +86,22 @@ UPTIME_TARGETS='[{"name": "example", "url": "https://example.test/healthz"}]' \
   PYTHONPATH=src python3 -m observability.uptime
 ```
 
-**Setting it up.** The bot's token, the channel and the targets live in
-Bitwarden's Sustenaut project, as `slack-bot-token`, `uptime-slack-channel`
-and `uptime-targets`. `pubkit.json`'s `secrets` list sends them here, as
-the secret `SUSTENAUT_SLACK_BOT_TOKEN` and the variables
-`UPTIME_SLACK_CHANNEL` and `UPTIME_TARGETS`. The bot must be in each
-channel it posts to; a direct message needs nothing more.
+**Setting it up.** The bot's token is a secret: Bitwarden's Sustenaut project keeps
+it as `slack-bot-token`, and `pubkit.json`'s `secrets` list sends it here as
+`SUSTENAUT_SLACK_BOT_TOKEN`:
 
 ```sh
 ./with-secrets ./pubkit app-secrets --check   # names and lengths only; sends nothing
 ./with-secrets ./pubkit app-secrets
 ```
 
-To change the targets, edit `uptime-targets` in Bitwarden and run it again.
+The channel and the targets aren't secrets: they are the repository variables
+`UPTIME_SLACK_CHANNEL` and `UPTIME_TARGETS`, which `pubkit.json`'s `variables` block
+declares and the owner's state repository keeps (`pubkit variables --apply` sets
+them). To change the targets, change them there. The Bitwarden entries
+`uptime-slack-channel` and `uptime-targets`, which used to send them, can be deleted
+once the state repository tracks them. The bot must be in each channel it posts
+to; a direct message needs nothing more.
 
 GitHub turns off a public repository's scheduled workflows after 60 days
 without activity in it. If it does, re-enable the workflow from the
@@ -188,6 +191,40 @@ the open signals are those in the table, with the starts and ends still in
 the inbox laid over them. It reads the inbox before the table, so a file
 loaded in between is seen twice, never missed. Without the variable it only
 prints.
+
+## Deploying
+
+The evaluator runs on the shared k3s server, in namespace `observability`, as the
+CronJob in `k8s/evaluator.yaml`: every two minutes, one run at a time, each stopped
+if it overruns. It is the service account `evaluator`, which is the principal storage's
+`signals` tenant lets write (`k8s:observability/evaluator`), with a projected token
+for storage and no Kubernetes API token.
+
+`.github/workflows/deploy.yml` builds the image (`Dockerfile`, from the hash-locked
+`evaluator-requirements.lock`) on each merge to main and applies `k8s/` with pubkit's
+`k8s-deploy.yml`, once `DEPLOY_OBSERVABILITY` is `on`. Its settings are the
+repository variables `OBSERVABILITY_DATASETS` (the call log datasets, comma-separated)
+and `OBSERVABILITY_SENDERS` (YAML or JSON, above), which become the ConfigMap
+`evaluator-settings`. They aren't secrets, so they aren't in Bitwarden: `pubkit.json`'s
+`variables` block names them, and the owner's state repository keeps their values and
+sets them (`pubkit variables --apply`, which then runs the deploy). By hand:
+
+```sh
+gh variable set OBSERVABILITY_DATASETS -R Sustenaut/observability --body 'calls_example,calls_other'
+gh variable set OBSERVABILITY_SENDERS -R Sustenaut/observability --body '{"example": {"app": "always"}}'
+```
+
+To take it live, or bring it back in step, from this repository's root on a machine
+on the admin tailnet:
+
+```sh
+./with-secrets k8s/admin/go-live.sh
+```
+
+It first checks that the two variables are set. It makes the namespace (the server's `sustenaut-app`), puts `observability-reader-key`
+in as the Secret `evaluator-bigquery-key`, sends the repository's secrets and deploy
+settings from Bitwarden (`pubkit app-secrets`), turns `DEPLOY_OBSERVABILITY` on, deploys, and runs
+the evaluator once, printing its log. Every step can run again.
 
 ## Working on it
 
