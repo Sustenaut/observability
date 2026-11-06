@@ -1,4 +1,5 @@
-# Observability's evaluator on the shared k3s server, namespace observability.
+# Observability on the shared k3s server, namespace observability: the evaluator, and
+# the trends page behind its sign-in proxy.
 # Rendered by .github/workflows/deploy.yml, which sets the image it just built and the
 # settings a deployment names, and applied by sustenaut-deploy on the server.
 apiVersion: kustomize.config.k8s.io/v1beta1
@@ -7,6 +8,9 @@ namespace: observability
 resources:
   - service-accounts.yaml
   - evaluator.yaml
+  - page.yaml
+  - oauth2-proxy.yaml
+  - ingress.yaml
 images:
   - name: ghcr.io/sustenaut/observability
     newTag: unset

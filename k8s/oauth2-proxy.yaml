@@ -1,0 +1,96 @@
+# oauth2-proxy signs people in with the team realm at auth.sustenaut.eu (Keycloak: a
+# passkey or an emailed code), as the client sustenaut.eu registered for its team sites
+# (admin/register-client.sh puts its id and secret in the Secret observability-oidc).
+# It lets in only people with the role observability, from the token's access claim
+# (the team access page at auth.sustenaut.eu/realms/team/access is the one list).
+# Open without sign-in: /healthz.
+apiVersion: v1
+kind: Service
+metadata:
+  name: oauth2-proxy
+spec:
+  selector:
+    app: oauth2-proxy
+  ports:
+    - name: http
+      port: 4180
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: oauth2-proxy
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: oauth2-proxy
+  template:
+    metadata:
+      labels:
+        app: oauth2-proxy
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: oauth2-proxy
+          image: quay.io/oauth2-proxy/oauth2-proxy:v7.15.5
+          args:
+            - --provider=keycloak-oidc
+            - --oidc-issuer-url=https://auth.sustenaut.eu/realms/team
+            - --code-challenge-method=S256
+            - --scope=openid email profile
+            - --http-address=0.0.0.0:4180
+            - --upstream=http://page:8080/
+            - --redirect-url=https://observability.sustenaut.eu/oauth2/callback
+            - --reverse-proxy=true
+            # Trust X-Forwarded-* only from the cluster's pods (k3s's cluster-cidr), where Traefik runs.
+            - --trusted-proxy-ip=10.42.0.0/16
+            - --email-domain=*
+            - --oidc-groups-claim=access
+            - --allowed-group=observability
+            - --cookie-refresh=4m
+            - --cookie-name=_observability
+            - --cookie-secure=true
+            - --cookie-samesite=lax
+            - --skip-provider-button=true
+            - --skip-auth-route=GET=^/healthz$
+            - --silence-ping-logging=true
+          env:
+            - name: OAUTH2_PROXY_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: observability-oidc
+                  key: client-id
+            - name: OAUTH2_PROXY_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: observability-oidc
+                  key: client-secret
+            - name: OAUTH2_PROXY_COOKIE_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: observability-page-secrets
+                  key: cookie-secret
+          ports:
+            - name: http
+              containerPort: 4180
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          readinessProbe:
+            httpGet:
+              path: /ping
+              port: http
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 20m
+              memory: 32Mi
+            limits:
+              memory: 128Mi

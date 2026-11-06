@@ -1,0 +1,20 @@
+# Applied by go-live.sh over the admin key: the deploy identity may not manage network
+# policies. k3s enforces them (kube-router). The page holds the reader's key and is
+# behind the sign-in, so only the proxy's pods may reach it.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: page-only-from-proxy
+  namespace: observability
+spec:
+  podSelector:
+    matchLabels:
+      app: observability-page
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: oauth2-proxy
+      ports:
+        - port: 8080

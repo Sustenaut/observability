@@ -21,6 +21,8 @@ evaluator = [
   "pyyaml",
   "integrations[github-app,storage-sink] @ https://github.com/Sustenaut/integrations/releases/download/v0.14.0/integrations-0.14.0-py3-none-any.whl",
 ]
+# The trends page, served behind the team sign-in: a web app over the evaluator's reads.
+page = ["fastapi", "uvicorn"]
 
 [project.urls]
 Repository = "https://github.com/Sustenaut/observability"

@@ -47,13 +47,20 @@ class Rule:
 
     def sql(self, datasets: list[Dataset], always: list[tuple[str, str]], now: datetime) -> str:
         """The query for these datasets and senders, at `now`."""
-        known = facts.load()
-        since = now - timedelta(minutes=self.lookback_minutes)
-        text = FACT.sub(lambda m: f"(\n{known[m.group(1)].union(datasets, since)}\n)", self.query)
-        projects = [(d.project,) for d in datasets]
-        return (text.replace("{{now}}", facts.timestamp(now))
-                .replace("{{projects}}", table(("project",), projects))
-                .replace("{{always_senders}}", table(("project", "sender_prefix"), always)))
+        return render(self.query, self.lookback_minutes, datasets, always, now)
+
+
+def render(query: str, lookback_minutes: int, datasets: list[Dataset], always: list[tuple[str, str]],
+           now: datetime) -> str:
+    """A query over the facts, its placeholders filled in: the rules', and any other
+    reader's, such as the trends page."""
+    known = facts.load()
+    since = now - timedelta(minutes=lookback_minutes)
+    text = FACT.sub(lambda m: f"(\n{known[m.group(1)].union(datasets, since)}\n)", query)
+    projects = [(d.project,) for d in datasets]
+    return (text.replace("{{now}}", facts.timestamp(now))
+            .replace("{{projects}}", table(("project",), projects))
+            .replace("{{always_senders}}", table(("project", "sender_prefix"), always)))
 
 
 def literal(value: str) -> str:

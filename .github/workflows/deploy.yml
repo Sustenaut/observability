@@ -25,11 +25,11 @@ jobs:
     with:
       image: ghcr.io/sustenaut/observability
       deploys: k8s observability DEPLOY_OBSERVABILITY
-      # It starts as its own user, holds its rules and its dependencies, and refuses to
-      # evaluate without its settings.
+      # It starts as its own user, holds its rules and its dependencies (the page's
+      # included), and refuses to evaluate without its settings.
       check: |
         docker run --rm "$IMAGE" sh -c 'test "$(id -u)" = 1000 && observability rules | grep -q "^sender_silent"'
-        docker run --rm "$IMAGE" python -c 'import fastavro, yaml, integrations.clients.storage, observability.bigquery'
+        docker run --rm "$IMAGE" python -c 'import fastavro, yaml, integrations.clients.storage, observability.bigquery, observability.page.main'
         test "$(docker run --rm "$IMAGE" observability evaluate >/dev/null 2>&1; echo $?)" = 2
       render: |
         var() { jq -r --arg name "$1" '.[$name] // ""' <<<"$VARS"; }
