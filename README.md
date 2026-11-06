@@ -199,9 +199,17 @@ for storage and no Kubernetes API token.
 
 `.github/workflows/deploy.yml` builds the image (`Dockerfile`, from the hash-locked
 `evaluator-requirements.lock`) on each merge to main and applies `k8s/` with pubkit's
-`k8s-deploy.yml`, once `DEPLOY_OBSERVABILITY` is `on`. Its settings come from the
-repository's variables: `OBSERVABILITY_DATASETS` and `OBSERVABILITY_SENDERS` become
-the ConfigMap `evaluator-settings`.
+`k8s-deploy.yml`, once `DEPLOY_OBSERVABILITY` is `on`. Its settings are the
+repository variables `OBSERVABILITY_DATASETS` (the call log datasets, comma-separated)
+and `OBSERVABILITY_SENDERS` (YAML or JSON, above), which become the ConfigMap
+`evaluator-settings`. They aren't secrets, so they aren't in Bitwarden: `pubkit.json`'s
+`variables` block names them, and the owner's state repository keeps their values and
+sets them (`pubkit variables --apply`, which then runs the deploy). By hand:
+
+```sh
+gh variable set OBSERVABILITY_DATASETS -R Sustenaut/observability --body 'calls_example,calls_other'
+gh variable set OBSERVABILITY_SENDERS -R Sustenaut/observability --body '{"example": {"app": "always"}}'
+```
 
 To take it live, or bring it back in step, from this repository's root on a machine
 on the admin tailnet:
@@ -210,9 +218,9 @@ on the admin tailnet:
 ./with-secrets k8s/admin/go-live.sh
 ```
 
-It makes the namespace (the server's `sustenaut-app`), puts `observability-reader-key`
-in as the Secret `evaluator-bigquery-key`, sends the repository's settings from
-Bitwarden (`pubkit app-secrets`), turns `DEPLOY_OBSERVABILITY` on, deploys, and runs
+It first checks that the two variables are set. It makes the namespace (the server's `sustenaut-app`), puts `observability-reader-key`
+in as the Secret `evaluator-bigquery-key`, sends the repository's secrets and deploy
+settings from Bitwarden (`pubkit app-secrets`), turns `DEPLOY_OBSERVABILITY` on, deploys, and runs
 the evaluator once, printing its log. Every step can run again.
 
 ## Working on it

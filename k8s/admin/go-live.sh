@@ -5,13 +5,16 @@
 #   ./with-secrets k8s/admin/go-live.sh
 #
 # It needs, in Bitwarden's Sustenaut project, observability-reader-key and every name
-# pubkit.json's secrets list gives; gh signed in as an admin of Sustenaut/observability;
-# and root SSH to the server. It prints no value.
+# pubkit.json's secrets list gives; the repository variables pubkit.json's variables
+# block names (OBSERVABILITY_DATASETS and OBSERVABILITY_SENDERS: not secrets, so not in
+# Bitwarden; the owner's state repository keeps them); gh signed in as an admin of
+# Sustenaut/observability; and root SSH to the server. It prints no secret.
 #
+#   0. the variables are set, or it stops and says how to set them
 #   1. the namespace observability and its deploy identity (the server's sustenaut-app)
 #   2. the BigQuery key, as the Secret evaluator-bigquery-key: the deploy identity may
 #      not manage Secrets, so it goes over the admin key
-#   3. the repository's settings, from Bitwarden: pubkit app-secrets
+#   3. the repository's secrets and deploy settings, from Bitwarden: pubkit app-secrets
 #   4. DEPLOY_OBSERVABILITY on, a deploy, and its wait
 #   5. one run of the evaluator now, rather than at the next two minutes, and its log
 set -euo pipefail
@@ -21,6 +24,16 @@ server=${SUSTENAUT_SERVER:-sustenaut}
 repo=Sustenaut/observability
 root=$(cd "$(dirname "$0")/../.." && pwd)
 
+echo "0/5 the evaluator's variables"
+set_already=$(gh variable list -R "$repo" --json name -q '.[].name')
+for name in OBSERVABILITY_DATASETS OBSERVABILITY_SENDERS; do
+  grep -qx "$name" <<<"$set_already" || {
+    echo "go-live: $name isn't set on $repo. Set it with gh variable set $name -R $repo --body '...'" \
+      "(README.md, \"Deploying\"), or from the owner's state repository, and run this again." >&2
+    exit 1
+  }
+done
+
 echo "1/5 the namespace and its deploy identity"
 ssh "root@$server" sustenaut-app observability
 
@@ -29,7 +42,7 @@ echo "2/5 the BigQuery key, as the Secret evaluator-bigquery-key"
 printf '%s' "$OBSERVABILITY_READER_KEY" | base64 -d | ssh "root@$server" \
   'k3s kubectl -n observability create secret generic evaluator-bigquery-key --from-file=key.json=/dev/stdin --dry-run=client -o yaml | k3s kubectl apply -f -'
 
-echo "3/5 the repository's settings, from Bitwarden"
+echo "3/5 the repository's secrets and deploy settings, from Bitwarden"
 "$root/pubkit" app-secrets
 
 echo "4/5 deploying"

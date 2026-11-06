@@ -53,16 +53,13 @@
       "from": "sustenaut-known-hosts",
       "to": "SUSTENAUT_KNOWN_HOSTS",
       "kind": "variable"
-    },
-    {
-      "from": "observability-datasets",
-      "to": "OBSERVABILITY_DATASETS",
-      "kind": "variable"
-    },
-    {
-      "from": "observability-senders",
-      "to": "OBSERVABILITY_SENDERS",
-      "kind": "variable"
     }
-  ]
+  ],
+  "variables": {
+    "names": [
+      "OBSERVABILITY_DATASETS",
+      "OBSERVABILITY_SENDERS"
+    ],
+    "deploy": "deploy.yml"
+  }
 }

@@ -3,7 +3,9 @@
 # "Deploying a service to k3s"), where the deploy key can only run sustenaut-deploy.
 #
 # What a deployment reads is in repository variables, so nothing here names a
-# consumer: OBSERVABILITY_DATASETS and OBSERVABILITY_SENDERS. It deploys only once
+# consumer: OBSERVABILITY_DATASETS and OBSERVABILITY_SENDERS, which pubkit.json
+# declares. Their values are kept in the owner's state repository: a change there
+# sets them with `pubkit variables --apply` and runs this workflow. It deploys only once
 # DEPLOY_OBSERVABILITY is "on", which k8s/admin/go-live.sh sets after making the
 # namespace and its Secret. Without SUSTENAUT_SERVER the image is built and pushed,
 # and nothing is deployed.
