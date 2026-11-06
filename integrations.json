@@ -16,5 +16,11 @@
       ],
       "mode": "required"
     }
+  ],
+  "other_secrets": [
+    {
+      "name": "UPTIME_SLACK_WEBHOOK",
+      "reason": "A Slack incoming webhook the uptime probe (.github/workflows/uptime.yml) posts to directly, as GitHub Actions' calls are: reported, not routed, since the integrations service it would go through runs on the server the probe watches"
+    }
   ]
 }

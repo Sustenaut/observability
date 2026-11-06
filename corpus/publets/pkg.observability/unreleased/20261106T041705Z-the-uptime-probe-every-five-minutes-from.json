@@ -1,0 +1,4 @@
+{
+  "category": "added",
+  "change": "The uptime probe: every five minutes from GitHub Actions, each target in UPTIME_TARGETS, down after two failed runs in a row, posted to Slack through UPTIME_SLACK_WEBHOOK"
+}
