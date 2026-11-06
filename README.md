@@ -173,14 +173,21 @@ of its signals, because not knowing isn't all clear, and the run then exits
 | `OBSERVABILITY_DATASETS` | the call log datasets to read |
 | `OBSERVABILITY_SENDERS` | the senders each project should have (above) |
 | `OBSERVABILITY_BIGQUERY_KEY` | `observability-reader`'s key: its JSON, or that JSON in base64 |
+| `OBSERVABILITY_STORAGE_URL` | storage's address, to write the signals there (optional) |
 
 It needs the `evaluator` extra (`pip install '.[evaluator]'`): PyYAML, and
-the integrations library, whose `Caller` makes each BigQuery call with its
-class's timeout and retries.
+the integrations library, whose `Caller` makes each BigQuery and storage
+call with its class's timeout and retries, and fastavro.
 
-For now it prints and writes nothing. Writing the signals to storage's
-`signals` tenant, for the ingest pod to load, waits on the integrations
-release with the storage client.
+With `OBSERVABILITY_STORAGE_URL` set, each run also writes its signals as one
+Avro file to storage's `signals` tenant, under `inbox/signals/<date>/`, with
+the pod's projected token from `/var/run/secrets/storage.sustenaut.eu/token`.
+The integrations ingest pod loads that inbox into `observability.signals` and
+deletes what it loaded. Until a file is loaded, the evaluator reads it back:
+the open signals are those in the table, with the starts and ends still in
+the inbox laid over them. It reads the inbox before the table, so a file
+loaded in between is seen twice, never missed. Without the variable it only
+prints.
 
 ## Deploying
 

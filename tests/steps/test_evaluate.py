@@ -14,13 +14,15 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 from integrations.calls import Response
 from pytest_bdd import given, parsers, scenarios, then, when
 
-from observability import bigquery, cli
+from observability import bigquery, cli, store
+from observability.evaluate import Signal
 
 from .local_bigquery import DAY, Warehouse
 
 scenarios("../features/evaluate.feature")
 
 TOKEN_URI = "https://oauth2.example.test/token"
+STORAGE = "https://storage.example.test"
 QUERIES = "https://bigquery.googleapis.com/bigquery/v2/projects/example-project/queries"
 
 
@@ -55,6 +57,7 @@ class Google:
         self.refuse: str | None = None
         self.second_ask = self.never = self.paged = False
         self.pending: dict[str, dict] = {}
+        self.storage = Storage()
 
     def answer(self, sql: str) -> dict:
         columns, rows = self.warehouse.typed(sql)
@@ -63,6 +66,8 @@ class Google:
                 "rows": [{"f": [{"v": cell(f["type"], v)} for f, v in zip(fields, row)]} for row in rows]}
 
     def send(self, request, timeout: float) -> Response:
+        if request.url.startswith(STORAGE):
+            return self.storage.send(request)
         if request.url == TOKEN_URI:
             return Response(200, json.dumps({"access_token": "ya29.test"}).encode())
         assert request.headers["Authorization"] == "Bearer ya29.test"
@@ -93,6 +98,36 @@ class Google:
         else:
             out.pop("pageToken", None)
         return out
+
+
+class Storage:
+    """The signals tenant: a buffer's put, get and list."""
+
+    def __init__(self) -> None:
+        self.files: dict[str, bytes] = {}
+        self.refuse_writes = self.refuse_lists = False
+        self.vanish: set[str] = set()
+
+    def send(self, request) -> Response:
+        assert request.headers["Authorization"] == "Bearer storage-token"
+        path = request.url.removeprefix(f"{STORAGE}/signals/")
+        if path.startswith("list?"):
+            if self.refuse_lists:
+                return Response(503, b'{"error": "down"}')
+            assert "prefix=inbox%2Fsignals%2F" in path
+            names = sorted(self.files)
+            for name in self.vanish:
+                self.files.pop(name, None)
+            return Response(200, json.dumps({"files": [{"name": n, "size": 1, "uploaded": "2026-11-01T10:00:00Z"}
+                                                       for n in names], "cursor": None}).encode())
+        if request.method == "PUT":
+            if self.refuse_writes:
+                return Response(500, b'{"error": "full"}')
+            self.files[path] = request.body
+            return Response(200, json.dumps({"name": path, "size": len(request.body)}).encode())
+        if path not in self.files:
+            return Response(404, b'{"error": "no such file"}')
+        return Response(200, self.files[path])
 
 
 @pytest.fixture
@@ -174,7 +209,7 @@ def paged(google: Google) -> None:
 
 
 def evaluate(run: dict, google: Google, capsys, argv: list[str]) -> None:
-    run["code"] = cli.main(argv, transport=google)
+    run["code"] = cli.main(argv, transport=google, storage_token="storage-token")
     captured = capsys.readouterr()
     run["out"], run["err"] = captured.out, captured.err
     run["signals"] = [json.loads(line) for line in captured.out.splitlines() if line.strip()]
@@ -228,7 +263,12 @@ def all_started(run: dict, clock: str) -> None:
     assert all(s["started_at"] == f"{DAY}T{clock}:00Z" and s["ended_at"] is None for s in run["signals"])
 
 
-@then(parsers.parse('it writes nothing for "{what}"'))
+@then(parsers.parse('it writes nothing for "{rule}" on "{subject}"'))
+def nothing_for_rule(run: dict, rule: str, subject: str) -> None:
+    assert not [s for s in run["signals"] if (s["rule_id"], s["subject"]) == (rule, subject)], run["signals"]
+
+
+@then(parsers.re(r'it writes nothing for "(?P<what>[^"]+)"$'))
 def nothing_for(run: dict, what: str) -> None:
     assert not [s for s in run["signals"] if what in (s["rule_id"], s["subject"])], run["signals"]
 
@@ -261,3 +301,62 @@ def every_type(run: dict) -> None:
 def python_values(run: dict) -> None:
     assert run["rows"] == [{"n": 3, "x": 0.5, "b": True, "t": datetime.fromtimestamp(1762000000, tz=timezone.utc),
                             "s": "a", "l": [1, 2], "z": None}]
+
+
+def moment(clock: str) -> datetime:
+    return datetime.fromisoformat(f"{DAY}T{clock}:00").replace(tzinfo=timezone.utc)
+
+
+@given("the signals tenant is OBSERVABILITY_STORAGE_URL")
+def with_storage(monkeypatch, run: dict) -> None:
+    monkeypatch.setenv("OBSERVABILITY_STORAGE_URL", STORAGE)
+
+
+@given(parsers.parse('the tenant holds a start of "{rule}" for "{subject}" at {clock}, not loaded yet'))
+def pending_start(google: Google, rule: str, subject: str, clock: str) -> None:
+    signal = Signal(rule, "1", subject, "critical", moment(clock), None, {"was": 1}, moment(clock))
+    data = store.encode([signal])
+    google.storage.files[store.place(moment(clock), data)] = data
+
+
+@given(parsers.parse('the tenant holds an end of "{rule}" for "{subject}" started at {start}, not loaded yet'))
+def pending_end(google: Google, rule: str, subject: str, start: str) -> None:
+    signal = Signal(rule, "1", subject, "warning", moment(start), moment("10:28"), {}, moment("10:28"))
+    data = store.encode([signal])
+    google.storage.files[store.place(moment("10:28"), data)] = data
+
+
+@given("a file in the tenant is loaded between its listing and its reading")
+def vanishing(google: Google) -> None:
+    signal = Signal("drops", "1", "example/gone", "warning", moment("10:20"), None, {}, moment("10:20"))
+    data = store.encode([signal])
+    name = store.place(moment("10:20"), data)
+    google.storage.files[name] = data
+    google.storage.vanish.add(name)
+
+
+@given("storage refuses writes")
+def refuse_writes(google: Google) -> None:
+    google.storage.refuse_writes = True
+
+
+@given("storage does not answer listings")
+def refuse_lists(google: Google) -> None:
+    google.storage.refuse_lists = True
+
+
+@then(parsers.parse("one file of {count:d} signals is written to {folder}"))
+def written(run: dict, google: Google, count: int, folder: str) -> None:
+    files = {n: d for n, d in google.storage.files.items() if n.startswith(folder)}
+    assert len(files) == 1, google.storage.files
+    name, data = next(iter(files.items()))
+    assert name.startswith(f"{folder}103000-evaluator-") and name.endswith(".avro"), name
+    assert [s.record() for s in store.decode(data)] == run["signals"]
+    assert len(run["signals"]) == count
+    assert f"wrote {count} signals to signals/{name}" in run["err"]
+
+
+@then("nothing is written to the tenant")
+def nothing_written(google: Google, run: dict) -> None:
+    assert not [n for n in google.storage.files if "103000" in n], google.storage.files
+    assert "wrote" not in run["err"]

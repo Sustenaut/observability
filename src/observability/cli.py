@@ -9,14 +9,22 @@ import json
 import os
 import sys
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
 
 from observability import __version__, config, facts, senders
 
 KEY = "OBSERVABILITY_BIGQUERY_KEY"
+# With it set, the evaluator writes its signals to storage's signals tenant, and
+# reads back those not loaded yet; without it, it only prints them.
+STORAGE = "OBSERVABILITY_STORAGE_URL"
+TENANT = "signals"
+# The pod's projected service-account token for storage, always here: no path
+# to it is taken from outside.
+TOKEN_FILE = "/var/run/secrets/storage.sustenaut.eu/token"
 
 
-def main(argv: list[str] | None = None, *, transport: Any = None) -> int:
+def main(argv: list[str] | None = None, *, transport: Any = None, storage_token: Any = None) -> int:
     parser = argparse.ArgumentParser(
         prog="observability",
         description="Trends across Sustenaut's services. It reads, derives signals and reports; it never acts.",
@@ -40,7 +48,7 @@ def main(argv: list[str] | None = None, *, transport: Any = None) -> int:
         return 0
     if args.command == "evaluate":
         try:
-            return evaluate(args.now, transport)
+            return evaluate(args.now, transport, storage_token)
         except ValueError as error:
             print(f"observability: {error}", file=sys.stderr)
             return 2
@@ -80,10 +88,12 @@ def key(text: str) -> dict:
     raise ValueError(f"{KEY} is not a service account's key")
 
 
-def evaluate(when: str | None, transport: Any) -> int:
+def evaluate(when: str | None, transport: Any, storage_token: Any = None) -> int:
     from integrations.calls import Caller, IntegrationError  # noqa: PLC0415 - the evaluator's dependencies
 
-    from observability import evaluate as evaluator, rules  # noqa: PLC0415
+    from integrations.clients.storage import Storage  # noqa: PLC0415
+
+    from observability import evaluate as evaluator, rules, store  # noqa: PLC0415
     from observability.bigquery import Warehouse  # noqa: PLC0415
 
     now = datetime.fromisoformat(when) if when else datetime.now(timezone.utc)
@@ -92,11 +102,16 @@ def evaluate(when: str | None, transport: Any) -> int:
     if not datasets:
         raise ValueError(f"no dataset: set {config.VARIABLE}")
     expected = senders.parse(os.environ.get(senders.VARIABLE, ""), datasets)
-    warehouse = Warehouse(Caller("Sustenaut/observability", "evaluator", transport=transport),
-                          key(os.environ.get(KEY, "")))
+    caller = Caller("Sustenaut/observability", "evaluator", transport=transport)
+    warehouse = Warehouse(caller, key(os.environ.get(KEY, "")))
+    url = os.environ.get(STORAGE, "")
+    signals = store.Store(Storage(caller, TENANT, base_url=url, token=storage_token,
+                                  token_file=None if storage_token else Path(TOKEN_FILE))) if url else None
     try:
-        opened = evaluator.open_signals(
-            warehouse.query(evaluator.OPEN_SIGNALS.replace("{{now}}", facts.timestamp(now))))
+        # Storage first: a file loaded between the two is then in both, never in neither.
+        pending = signals.pending() if signals else []
+        opened = store.still_open(evaluator.open_signals(
+            warehouse.query(evaluator.OPEN_SIGNALS.replace("{{now}}", facts.timestamp(now)))), pending)
     except IntegrationError as error:
         # Without them every breach would start again, so nothing is evaluated.
         raise ValueError(f"could not read the open signals: {error}") from None
@@ -106,4 +121,15 @@ def evaluate(when: str | None, transport: Any) -> int:
         print(json.dumps(signal.record(), sort_keys=True))
     for rule, error in sorted(outcome.failed.items()):
         print(f"observability: {rule} failed, so its signals stay as they were: {error}", file=sys.stderr)
-    return 1 if outcome.failed else 0
+    unwritten = False
+    if signals:
+        try:
+            where = signals.write(outcome.signals, now)
+        except IntegrationError as error:
+            # They are worked out again next run, as nothing records them as open.
+            print(f"observability: the signals could not be written: {error}", file=sys.stderr)
+            unwritten = True
+        else:
+            if where:
+                print(f"observability: wrote {len(outcome.signals)} signals to {TENANT}/{where}", file=sys.stderr)
+    return 1 if outcome.failed or unwritten else 0

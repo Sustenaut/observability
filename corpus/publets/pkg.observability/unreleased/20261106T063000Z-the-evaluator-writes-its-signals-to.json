@@ -1,0 +1,4 @@
+{
+  "category": "added",
+  "change": "The evaluator writes its signals to storage's signals tenant when OBSERVABILITY_STORAGE_URL is set, one Avro file a run, and counts those written but not loaded yet as open"
+}

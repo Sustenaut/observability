@@ -59,7 +59,9 @@
     {
       "plugin": "storage.api",
       "paths": [
-        ".github/workflows/deploy.yml"
+        ".github/workflows/deploy.yml",
+        "src/observability/store.py",
+        "src/observability/cli.py"
       ],
       "mode": "required"
     },
