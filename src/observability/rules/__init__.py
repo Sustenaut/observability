@@ -17,6 +17,18 @@ lookback on, and may use `{{now}}`, the moment evaluated, `{{projects}}`,
 a table of the configured projects (`project`), and `{{always_senders}}`,
 a table of the senders expected to report all the time (`project`,
 `sender_prefix`).
+
+A rule may also have a `trend`, which the signal's page charts (it never
+changes what the rule finds, so it needs no new version):
+
+    trend:
+      label: Slowest warm answer, ms   # what the value is
+      threshold: 5000                  # where the rule says breach
+      query: |                         # one row per subject and bucket
+        SELECT ... AS subject, bucket, ... AS value
+
+It reads facts and placeholders as the query does, over the window the page
+shows.
 """
 
 from __future__ import annotations
@@ -31,9 +43,18 @@ from observability.config import Dataset
 
 SEVERITIES = ("critical", "warning", "info")
 KEYS = {"id", "version", "severity", "summary", "lookback_minutes", "query"}
+OPTIONAL = {"trend"}
+TREND_KEYS = {"label", "threshold", "query"}
 FACT = re.compile(r"\{\{fact:([a-z_]+)\}\}")
 PLACEHOLDER = re.compile(r"\{\{(?!fact:)([a-z_]+)\}\}")
 KNOWN = {"now", "projects", "always_senders"}
+
+
+@dataclass(frozen=True)
+class Trend:
+    label: str
+    threshold: float
+    query: str
 
 
 @dataclass(frozen=True)
@@ -44,6 +65,7 @@ class Rule:
     summary: str
     lookback_minutes: int
     query: str
+    trend: Trend | None = None
 
     def sql(self, datasets: list[Dataset], always: list[tuple[str, str]], now: datetime) -> str:
         """The query for these datasets and senders, at `now`."""
@@ -80,7 +102,7 @@ def parse(name: str, data: object) -> Rule:
     """A rule from its file's YAML, each field checked."""
     if not isinstance(data, dict):
         raise ValueError(f"{name}.yaml: a rule is a mapping")
-    missing, unknown = sorted(KEYS - set(data)), sorted(set(data) - KEYS)
+    missing, unknown = sorted(KEYS - set(data)), sorted(set(data) - KEYS - OPTIONAL)
     if missing or unknown:
         what = "; ".join(filter(None, [missing and f"no {', '.join(missing)}",
                                        unknown and f"no setting {', '.join(unknown)}"]))
@@ -91,15 +113,31 @@ def parse(name: str, data: object) -> Rule:
         raise ValueError(f"{name}.yaml: severity is {', '.join(SEVERITIES)}, not {data['severity']}")
     if not isinstance(data["lookback_minutes"], int) or data["lookback_minutes"] < 2:
         raise ValueError(f"{name}.yaml: lookback_minutes is a whole number of minutes, at least 2")
-    query = str(data["query"])
+    query = checked(name, str(data["query"]))
+    return Rule(id=name, version=str(data["version"]), severity=data["severity"], summary=str(data["summary"]),
+                lookback_minutes=data["lookback_minutes"], query=query, trend=trend(name, data.get("trend")))
+
+
+def checked(name: str, query: str) -> str:
+    """`query`, once every fact and placeholder in it is known."""
     for fact in FACT.findall(query):
         if fact not in facts.load():
             raise ValueError(f"{name}.yaml: there is no fact {fact}")
     for placeholder in PLACEHOLDER.findall(query):
         if placeholder not in KNOWN:
             raise ValueError(f"{name}.yaml: there is no {{{{{placeholder}}}}}")
-    return Rule(id=name, version=str(data["version"]), severity=data["severity"], summary=str(data["summary"]),
-                lookback_minutes=data["lookback_minutes"], query=query)
+    return query
+
+
+def trend(name: str, data: object) -> Trend | None:
+    if data is None:
+        return None
+    if not isinstance(data, dict) or set(data) != TREND_KEYS:
+        raise ValueError(f"{name}.yaml: a trend has {', '.join(sorted(TREND_KEYS))}, and nothing else")
+    if isinstance(data["threshold"], bool) or not isinstance(data["threshold"], (int, float)):
+        raise ValueError(f"{name}.yaml: a trend's threshold is a number")
+    return Trend(label=str(data["label"]), threshold=float(data["threshold"]),
+                 query=checked(name, str(data["query"])))
 
 
 def load() -> dict[str, Rule]:

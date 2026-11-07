@@ -1,0 +1,4 @@
+{
+  "category": "added",
+  "change": "Each signal has its own page, /signals/<rule_id>/<started>/<subject>, behind the team sign-in: the signal and its evidence, the rule's trend against its threshold, the facts around it, and the rule's other signals for the subject. observability.links makes its address, and rules may have a trend"
+}

@@ -198,7 +198,7 @@ prints.
 sign-in: plain HTML from the server, with no script, never cached. It shows:
 
 - **Signals**: those open, critical first, with their evidence, and those that ended in
-  the last day, from `observability.signals`.
+  the last day, from `observability.signals`. Each subject links to its signal's page.
 - **Calls by plugin**: each app's calls, errors (refused or unavailable) and their share,
   the typical latency (the bucket medians, weighted by calls) and the slowest, from
   `call_rollups` (calls to outside services only, not request totals).
@@ -216,6 +216,44 @@ reach the page (`k8s/admin/network-policy.yaml`), and the ingress routes everyth
 the proxy. The sign-in client is sustenaut.eu's, for its team sites:
 `k8s/admin/register-client.sh` adds this site to it, approved by a DNS record, and puts it
 in the Secret `observability-oidc`. `go-live.sh` runs it when that Secret isn't there.
+
+## A signal's page
+
+Each signal has a page of its own, behind the same sign-in, gathering what lies behind
+it. A notifier's message links here. The address never changes, whether the signal is
+open or has ended:
+
+```
+https://observability.sustenaut.eu/signals/<rule_id>/<started>/<subject>
+```
+
+`started` is the signal's `started_at` in UTC as `YYYYMMDDTHHMMSSZ`, with `.ffffff`
+before the `Z` when it has microseconds. `subject` comes last, percent-encoded except
+for `/`, so `example/app` reads as it is. `observability.links` makes the address
+(`signal_url(rule_id, subject, started_at)`) and reads it back. It needs nothing installed,
+so another repository can depend on this package for it alone.
+
+The page shows:
+
+- **The signal**: its rule and the rule's version, severity, subject, when it started, and
+  whether it is open or how long it lasted, with its evidence.
+- **The trend**: the value the rule tests, against its threshold, from the hour before the
+  signal began to half an hour after it ended (or now), as an inline SVG with the signal's
+  span shaded. It comes from the rule's optional `trend`, which `drops`, `storage_failures`,
+  `slow_pages` and `plugin_errors` have; the other rules don't have one yet.
+- **The windows around it**: the facts the evidence names over the same span. A sender's
+  windows (reports, calls, drops, failed writes and page times), the ingest pod's
+  (waiting and rejected files) for a project, or an app's calls to a plugin.
+- **The rule's other signals** for the same subject in the last 30 days, each linking to
+  its own page.
+- **The rule**: its lookback and its query.
+
+An address that names no signal, a rule there isn't, or a malformed time is a 404. The
+page reads the same tables as the trends page, with the same key: the reader already sees
+`observability.signals` and the call log datasets.
+
+The page is read-only. Later it is where rules are configured: an edit there will open a
+pull request here, so rules and their routes stay versioned files.
 
 ## Deploying
 

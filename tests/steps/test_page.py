@@ -9,11 +9,12 @@ import pytest
 from fastapi.testclient import TestClient
 from pytest_bdd import given, parsers, scenarios, then, when
 
-from observability import senders
+from observability import senders  # noqa: I001
 from observability.config import Dataset
 from observability.page import main
 from observability.page.app import create_app
-from observability.page.queries import trends
+from observability import links, rules
+from observability.page.queries import signal, trends
 
 from .local_bigquery import DAY, Warehouse
 
@@ -78,13 +79,20 @@ def read_trends(warehouse: Warehouse, page: dict) -> None:
     page["trends"] = read(warehouse, page)
 
 
+def read_signal(warehouse: Warehouse, page: dict, rule_id: str, subject: str, started: datetime):
+    if page["down"]:
+        raise RuntimeError("no answer")
+    return signal(warehouse.run, page["datasets"], rules.load(), rule_id, subject, started, NOW)
+
+
 def client(warehouse: Warehouse, page: dict) -> TestClient:
     def load():
         if page["down"]:
             raise RuntimeError("no answer")
         return read(warehouse, page)
 
-    return TestClient(create_app(load), follow_redirects=False)
+    return TestClient(create_app(load, lambda r, s, t: read_signal(warehouse, page, r, s, t)),
+                      follow_redirects=False)
 
 
 @when("the page is asked for")
@@ -166,3 +174,69 @@ def imports() -> None:
 @then(parsers.parse('"{path}" answers ok'))
 def health(warehouse: Warehouse, page: dict, path: str) -> None:
     assert client(warehouse, page).get(path).json() == {"status": "ok"}
+
+
+@given(parsers.parse('the open signal "{rule}" for "{subject}" since {clock}, with evidence "{pairs}"'))
+def open_signal_with(warehouse: Warehouse, rule: str, subject: str, clock: str, pairs: str) -> None:
+    evidence = dict(pair.split("=", 1) for pair in pairs.split())
+    warehouse.signals([{"rule_id": rule, "subject": subject, "started_at": f"{clock}:00", "evidence": evidence}])
+
+
+@when(parsers.parse('the page of "{rule}" for "{subject}" since {clock} is read at 10:30'))
+def read_signal_page(warehouse: Warehouse, page: dict, rule: str, subject: str, clock: str) -> None:
+    started = datetime.fromisoformat(f"{DAY}T{clock}:00").replace(tzinfo=timezone.utc)
+    page["signal"] = read_signal(warehouse, page, rule, subject, started)
+
+
+@then(parsers.re(r'its trend is "(?P<listed>[^"]*)"'))
+def trend_is(page: dict, listed: str) -> None:
+    got = " ".join(f"{shown(r['bucket'])}={float(r['value']):g}" for r in page["signal"].trend)
+    assert got == listed, got
+
+
+@then(parsers.re(r'its context is "(?P<context>[^"]*)" with buckets "(?P<listed>[^"]*)"'))
+def context_is(page: dict, context: str, listed: str) -> None:
+    view = page["signal"]
+    assert (view.context, " ".join(shown(r["bucket"]) for r in view.rows)) == (context, listed)
+
+
+@then(parsers.parse('its history is "{listed}"'))
+def history_is(page: dict, listed: str) -> None:
+    got = ", ".join(f"{shown(r['started_at'])} {shown(r['ended_at']) or 'open'}" for r in page["signal"].history)
+    assert got == listed, got
+
+
+@when(parsers.parse('"{path}" is asked for'))
+def asked_path(warehouse: Warehouse, page: dict, path: str) -> None:
+    page["answer"] = client(warehouse, page).get(path)
+
+
+@then(parsers.parse('an app with no signal loader answers 404 for "{path}"'))
+def no_loader(path: str) -> None:
+    assert TestClient(create_app(lambda: None)).get(path).status_code == 404
+
+
+def moment_of(text: str) -> datetime:
+    return datetime.fromisoformat(text)
+
+
+@then(parsers.parse('the path of "{rule}" for "{subject}" since "{started}" is "{path}"'))
+def path_is(rule: str, subject: str, started: str, path: str) -> None:
+    assert links.signal_path(rule, subject, moment_of(started)) == path
+
+
+@then(parsers.parse('"{key}" reads back as "{started}"'))
+def reads_back(key: str, started: str) -> None:
+    assert links.parse_started(key) == moment_of(started)
+    assert links.started_key(moment_of(started)) == key
+
+
+@then(parsers.parse('the full address of "{rule}" for "{subject}" since "{started}" is "{url}"'))
+def full_address(rule: str, subject: str, started: str, url: str) -> None:
+    assert links.signal_url(rule, subject, moment_of(started)) == url
+
+
+@then(parsers.parse('a rule id "{rule}" has no address'))
+def no_address(rule: str) -> None:
+    with pytest.raises(ValueError):
+        links.signal_path(rule, "x", NOW)

@@ -13,3 +13,14 @@ query: |
   WHERE kind = 'sender' AND bucket >= TIMESTAMP_SUB({{now}}, INTERVAL 6 MINUTE)
   GROUP BY project, sender_prefix
   HAVING SUM(storage_failures) > 0
+trend:
+  label: Failed writes to storage
+  threshold: 0
+  query: |
+    SELECT
+      CONCAT(project, '/', sender_prefix) AS subject,
+      bucket,
+      SUM(storage_failures) AS value
+    FROM {{fact:sender_windows}}
+    WHERE kind = 'sender'
+    GROUP BY project, sender_prefix, bucket

@@ -114,6 +114,11 @@ Feature: Rules over the facts
       | r     | {id: r, version: 1, severity: info, summary: s, lookback_minutes: 1, query: q}                         | r.yaml: lookback_minutes is a whole number of minutes     |
       | r     | {id: r, version: 1, severity: info, summary: s, lookback_minutes: 5, query: 'SELECT * FROM {{fact:nope}}'} | r.yaml: there is no fact nope                         |
       | r     | {id: r, version: 1, severity: info, summary: s, lookback_minutes: 5, query: 'SELECT {{later}}'}        | r.yaml: there is no {{later}}                             |
+      | r     | {id: r, version: 1, severity: info, summary: s, lookback_minutes: 5, query: q, trend: {label: l}}      | r.yaml: a trend has label, query, threshold               |
+      | r     | {id: r, version: 1, severity: info, summary: s, lookback_minutes: 5, query: q, trend: [1]}             | r.yaml: a trend has label, query, threshold               |
+      | r     | {id: r, version: 1, severity: info, summary: s, lookback_minutes: 5, query: q, trend: {label: l, threshold: high, query: q}} | r.yaml: a trend's threshold is a number |
+      | r     | {id: r, version: 1, severity: info, summary: s, lookback_minutes: 5, query: q, trend: {label: l, threshold: true, query: q}} | r.yaml: a trend's threshold is a number |
+      | r     | {id: r, version: 1, severity: info, summary: s, lookback_minutes: 5, query: q, trend: {label: l, threshold: 1, query: 'SELECT {{later}}'}} | r.yaml: there is no {{later}} |
 
   Scenario: The rules are listed with their versions and severities
     When I list the rules

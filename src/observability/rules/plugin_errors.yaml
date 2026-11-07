@@ -17,3 +17,14 @@ query: |
   WHERE scope = 'plugin'
   GROUP BY project, app, plugin
   HAVING SUM(calls) >= 20 AND SUM(errors) > 0.05 * SUM(calls)
+trend:
+  label: Calls failing, % of the bucket's calls
+  threshold: 5
+  query: |
+    SELECT
+      CONCAT(project, '/', app, '/', plugin) AS subject,
+      bucket,
+      100 * SUM(errors) / SUM(calls) AS value
+    FROM {{fact:call_rollups}}
+    WHERE scope = 'plugin'
+    GROUP BY project, app, plugin, bucket
