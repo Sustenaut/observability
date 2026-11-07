@@ -101,7 +101,9 @@ printf '%s' "$OBSERVABILITY_READER_KEY" | base64 -d | ssh "root@$server" \
   'k3s kubectl -n observability create secret generic evaluator-bigquery-key --from-file=key.json=/dev/stdin --dry-run=client -o yaml | k3s kubectl apply -f -'
 
 echo "3/7 the page's cookie secret, and its network policy"
-printf '%s' "$OBSERVABILITY_COOKIE_SECRET" | ssh "root@$server" \
+# oauth2-proxy decodes the secret only as URL-safe base64: a standard one with + or / in
+# it is taken as 44 raw bytes, which it refuses. The same 32 bytes, URL-safe, it takes.
+printf '%s' "$OBSERVABILITY_COOKIE_SECRET" | tr '+/' '-_' | ssh "root@$server" \
   'k3s kubectl -n observability create secret generic observability-page-secrets --from-file=cookie-secret=/dev/stdin --dry-run=client -o yaml | k3s kubectl apply -f -'
 ssh "root@$server" 'k3s kubectl apply -f -' < "$root/k8s/admin/network-policy.yaml"
 
