@@ -30,6 +30,7 @@
     {
       "plugin": "github.repo-ops",
       "paths": [
+        ".github/workflows/wheel.yml",
         "k8s/admin/go-live.sh"
       ],
       "mode": "required"
