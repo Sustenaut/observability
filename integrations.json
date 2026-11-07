@@ -3,6 +3,7 @@
     {
       "plugin": "bitwarden.secrets",
       "paths": [
+        "k8s/admin/go-live.sh",
         "with-secrets",
         "with-secrets.json"
       ],
@@ -21,7 +22,8 @@
       "paths": [
         ".github/workflows/deploy.yml",
         "k8s/evaluator.yaml",
-        "k8s/kustomization.yaml"
+        "k8s/kustomization.yaml",
+        "k8s/page.yaml"
       ],
       "mode": "required"
     },
@@ -36,6 +38,13 @@
       "plugin": "google.bigquery",
       "paths": [
         "src/observability/bigquery.py"
+      ],
+      "mode": "required"
+    },
+    {
+      "plugin": "letsencrypt.certs",
+      "paths": [
+        "k8s/ingress.yaml"
       ],
       "mode": "required"
     },

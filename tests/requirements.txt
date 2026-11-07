@@ -15,3 +15,6 @@ pyyaml==6.0.3
 # Caller; its github-app extra signs Google's token (the suite makes a key to sign
 # with), and storage-sink brings fastavro, for the signal files.
 integrations[github-app,storage-sink] @ https://github.com/Sustenaut/integrations/releases/download/v0.14.0/integrations-0.14.0-py3-none-any.whl
+# The trends page, and FastAPI's test client.
+fastapi==0.142.2
+httpx==0.28.1

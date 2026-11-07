@@ -192,6 +192,31 @@ the inbox laid over them. It reads the inbox before the table, so a file
 loaded in between is seen twice, never missed. Without the variable it only
 prints.
 
+## The trends page
+
+`observability.sustenaut.eu/trends/integrations` shows the last day, behind the team
+sign-in: plain HTML from the server, with no script, never cached. It shows:
+
+- **Signals**: those open, critical first, with their evidence, and those that ended in
+  the last day, from `observability.signals`.
+- **Calls by plugin**: each app's calls, errors (refused or unavailable) and their share,
+  the typical latency (the bucket medians, weighted by calls) and the slowest, from
+  `call_rollups` (calls to outside services only, not request totals).
+- **Senders**: every sender and ingest pod seen in the last day, and every one
+  `OBSERVABILITY_SENDERS` expects, with its last report and its state: reporting, on
+  demand, or silent (an always-on sender quiet for more than 6 minutes).
+- **Page times**: the newest 30 two-minute windows of each sender that answered
+  requests, with their quickest, median and slowest answers, and cold starts marked.
+
+It runs as `observability.page.main:app` in its own pod (`k8s/page.yaml`), reading
+BigQuery with the reader's key. `k8s/oauth2-proxy.yaml` signs people in with the team
+realm at auth.sustenaut.eu and lets in only those with the role `observability`; who has
+it is the team access page, auth.sustenaut.eu/realms/team/access. Only the proxy may
+reach the page (`k8s/admin/network-policy.yaml`), and the ingress routes everything to
+the proxy. The sign-in client is sustenaut.eu's, for its team sites:
+`k8s/admin/register-client.sh` adds this site to it, approved by a DNS record, and puts it
+in the Secret `observability-oidc`. `go-live.sh` runs it when that Secret isn't there.
+
 ## Deploying
 
 The evaluator runs on the shared k3s server, in namespace `observability`, as the
@@ -221,7 +246,13 @@ on the admin tailnet:
 ./with-secrets k8s/admin/go-live.sh
 ```
 
-It first checks that the two variables are set. It makes the namespace (the server's `sustenaut-app`), puts `observability-reader-key`
+It first checks that the two variables are set. The first time, when Bitwarden hasn't got
+the page's cookie secret `observability-cookie-secret`, it asks at a hidden prompt for an
+access token that may write to the Sustenaut project, makes one (`openssl rand -base64 32`)
+and writes it there, never printing it or putting it on disk; later runs read it through
+`./with-secrets`. It puts that secret and the page's network policy on the server, and registers
+the sign-in client while the Secret `observability-oidc` isn't there, stopping while that
+waits for its approval record. It makes the namespace (the server's `sustenaut-app`), puts `observability-reader-key`
 in as the Secret `evaluator-bigquery-key`, sends the repository's secrets and deploy
 settings from Bitwarden (`pubkit app-secrets`), turns `DEPLOY_OBSERVABILITY` on, deploys, and runs
 the evaluator once, printing its log. Every step can run again.

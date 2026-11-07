@@ -1,0 +1,74 @@
+# The trends page (observability.page.main:app), in its own pod with the reader's
+# key, which can only read. Nothing reaches it but oauth2-proxy (oauth2-proxy.yaml):
+# admin/network-policy.yaml lets in only the proxy's pods, and the ingress routes only
+# to the proxy. Its settings are the evaluator's, the ConfigMap evaluator-settings.
+apiVersion: v1
+kind: Service
+metadata:
+  name: page
+spec:
+  selector:
+    app: observability-page
+  ports:
+    - name: http
+      port: 8080
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: page
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: observability-page
+  template:
+    metadata:
+      labels:
+        app: observability-page
+    spec:
+      serviceAccountName: page
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: page
+          image: ghcr.io/sustenaut/observability
+          command: ["uvicorn", "observability.page.main:app", "--host", "0.0.0.0", "--port", "8080", "--no-server-header"]
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: OBSERVABILITY_BIGQUERY_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: evaluator-bigquery-key
+                  key: key.json
+          envFrom:
+            - configMapRef:
+                name: evaluator-settings
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 20
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 25m
+              memory: 96Mi
+            limits:
+              memory: 256Mi
