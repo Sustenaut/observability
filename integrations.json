@@ -3,6 +3,7 @@
     {
       "plugin": "bitwarden.secrets",
       "paths": [
+        "k8s/admin/go-live.sh",
         "with-secrets",
         "with-secrets.json"
       ],
