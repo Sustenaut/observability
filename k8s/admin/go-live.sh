@@ -5,13 +5,20 @@
 #
 #   ./with-secrets k8s/admin/go-live.sh
 #
-# It needs, in Bitwarden's Sustenaut project, observability-reader-key,
-# observability-cookie-secret (32 random bytes, base64) and every name pubkit.json's
-# secrets list gives; the repository variables pubkit.json's variables block names (not
-# secrets, so not in Bitwarden; the owner's state repository keeps them); gh signed in as
-# an admin of Sustenaut/observability; root SSH to the server; and, for the sign-in
-# client, checkouts of Sustenaut/auth and Sustenaut/shared-infra beside this one. It
-# prints no secret.
+# It needs, in Bitwarden's Sustenaut project, observability-reader-key and every name
+# pubkit.json's secrets list gives; the repository variables pubkit.json's variables
+# block names (not secrets, so not in Bitwarden; the owner's state repository keeps
+# them); gh signed in as an admin of Sustenaut/observability; root SSH to the server;
+# and, for the sign-in client, checkouts of Sustenaut/auth and Sustenaut/shared-infra
+# beside this one. It prints no secret.
+#
+# The page's cookie secret, observability-cookie-secret, it makes itself the first time:
+# when Bitwarden hasn't got it, it asks at a hidden prompt for an access token that may
+# write to the project, makes 32 random bytes (openssl rand -base64 32), and writes them
+# there with Bitwarden's SDK, through the pubkit this repository pins (bws would take the
+# value on its command line, where every local user can read it). Neither the token nor
+# the value is printed or put on disk. This comes before step 0, so stopping here
+# changes nothing; later runs read the secret through ./with-secrets.
 #
 #   0. the variables are set, or it stops and says how to set them
 #   1. the namespace observability and its deploy identity (the server's sustenaut-app)
@@ -28,11 +35,52 @@
 set -euo pipefail
 
 : "${OBSERVABILITY_READER_KEY:?not set: run this through ./with-secrets, after making the key}"
-: "${OBSERVABILITY_COOKIE_SECRET:?not set: add observability-cookie-secret to Bitwarden (32 random bytes, base64), and run this through ./with-secrets}"
 server=${SUSTENAUT_SERVER:-sustenaut}
 repo=Sustenaut/observability
 root=$(cd "$(dirname "$0")/../.." && pwd)
 k() { ssh "root@$server" "k3s kubectl -n observability $*"; }
+
+# Writes a new observability-cookie-secret to Bitwarden and leaves it in
+# OBSERVABILITY_COOKIE_SECRET, or stops. The token and the value reach pubkit's SDK
+# write on its standard input, never a command line.
+make_cookie_secret() {
+  local token listed project wheel
+  echo "observability-cookie-secret isn't in Bitwarden, so this makes it."
+  read -rsp "Bitwarden access token with write access to Sustenaut (Enter to stop): " token < /dev/tty
+  echo
+  [ -n "$token" ] || { echo "go-live: no token, so no cookie secret, and nothing was changed" >&2; exit 1; }
+  listed=$(BWS_ACCESS_TOKEN=$token bws project list --output json --color no 2> /dev/null) \
+    || { echo "go-live: bws couldn't list projects with that token" >&2; exit 1; }
+  project=$(jq -r '[.[] | select(.name == "Sustenaut")] | if length == 1 then "\(.[0].id) \(.[0].organizationId)" else empty end' <<<"$listed")
+  [ -n "$project" ] || { echo "go-live: that token's machine account doesn't see one project named Sustenaut" >&2; exit 1; }
+  # bws lists the values too; they stay in this variable.
+  listed=$(BWS_ACCESS_TOKEN=$token bws secret list "${project%% *}" --output json --color no 2> /dev/null) \
+    || { echo "go-live: bws couldn't list Sustenaut's secrets with that token" >&2; exit 1; }
+  if jq -e 'any(.[]; .key == "observability-cookie-secret")' <<<"$listed" > /dev/null; then
+    echo "go-live: observability-cookie-secret is in Bitwarden, but ./with-secrets didn't read it:" \
+      "give its read-only machine account access to it, and run this again" >&2
+    exit 1
+  fi
+  OBSERVABILITY_COOKIE_SECRET=$(openssl rand -base64 32)
+  wheel=$(sed -n 's/.*--from "\([^"]*\)".*/\1/p' "$root/pubkit")
+  printf '%s\n%s\n%s\n' "$token" "$project" "$OBSERVABILITY_COOKIE_SECRET" | uvx -q --from "$wheel" python -I -c '
+import sys
+from pubkit.bitwarden import WriteFailed, ensure, write
+token, ids, value = sys.stdin.read().split("\n")[:3]
+project, organization = ids.split(" ")
+if why := ensure():
+    sys.exit(f"go-live: {why}")
+try:
+    write(token, organization, project, "observability-cookie-secret", value,
+          "The trends page cookie secret (oauth2-proxy), made by observability k8s/admin/go-live.sh")
+except WriteFailed as error:
+    sys.exit(f"go-live: Bitwarden refused observability-cookie-secret: {error}")
+'
+  unset token listed
+  echo "wrote observability-cookie-secret to Bitwarden"
+}
+
+[ -n "${OBSERVABILITY_COOKIE_SECRET:-}" ] || make_cookie_secret
 
 echo "0/7 the variables"
 set_already=$(gh variable list -R "$repo" --json name -q '.[].name')

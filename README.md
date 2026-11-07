@@ -246,8 +246,11 @@ on the admin tailnet:
 ./with-secrets k8s/admin/go-live.sh
 ```
 
-It first checks that the two variables are set; it also puts in the page's cookie
-secret (`observability-cookie-secret` in Bitwarden) and its network policy, and registers
+It first checks that the two variables are set. The first time, when Bitwarden hasn't got
+the page's cookie secret `observability-cookie-secret`, it asks at a hidden prompt for an
+access token that may write to the Sustenaut project, makes one (`openssl rand -base64 32`)
+and writes it there, never printing it or putting it on disk; later runs read it through
+`./with-secrets`. It puts that secret and the page's network policy on the server, and registers
 the sign-in client while the Secret `observability-oidc` isn't there, stopping while that
 waits for its approval record. It makes the namespace (the server's `sustenaut-app`), puts `observability-reader-key`
 in as the Secret `evaluator-bigquery-key`, sends the repository's secrets and deploy
