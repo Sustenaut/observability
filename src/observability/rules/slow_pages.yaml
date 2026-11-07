@@ -14,3 +14,14 @@ query: |
     AND cold_start = FALSE
   GROUP BY project, sender_prefix
   HAVING MAX(page_ms_high) > 5000
+trend:
+  label: Slowest warm answer, ms
+  threshold: 5000
+  query: |
+    SELECT
+      CONCAT(project, '/', sender_prefix) AS subject,
+      bucket,
+      MAX(page_ms_high) AS value
+    FROM {{fact:sender_windows}}
+    WHERE kind = 'sender' AND cold_start = FALSE AND page_count > 0
+    GROUP BY project, sender_prefix, bucket

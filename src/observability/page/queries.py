@@ -121,3 +121,123 @@ def trends(query: Callable[[str], list[dict[str, Any]]], datasets: list[Dataset]
                               key=lambda r: (r["severity"] != "critical", r["started_at"]))
     out.recent_signals = query(RECENT_SIGNALS.replace("{{now}}", stamp))
     return out
+
+
+# A signal's page: the hour before it began, and half an hour after it ended.
+BEFORE = timedelta(hours=1)
+AFTER = timedelta(minutes=30)
+# Its rule's other signals for the same subject, newest first.
+HISTORY = 20
+
+# The signal: its rule and the second it began, which a rule id and a timestamp
+# can name safely; its subject, which could hold anything, is matched here.
+SIGNAL = """\
+SELECT rule_id, rule_version, subject, severity, started_at, ended_at, TO_JSON_STRING(evidence) AS evidence,
+  emitted_at
+FROM observability.signals
+WHERE rule_id = {{rule}} AND started_at >= {{from}} AND started_at < {{to}}
+"""
+
+SIGNAL_HISTORY = """\
+SELECT rule_id, subject, severity, started_at, ended_at
+FROM observability.signals
+WHERE rule_id = {{rule}} AND started_at >= TIMESTAMP_SUB({{now}}, INTERVAL 30 DAY)
+"""
+
+# What the signal's evidence is about, around it: a sender's or the ingest pod's
+# windows, or an app's calls to a plugin.
+SENDER_WINDOWS = """\
+SELECT project, kind, sender_prefix, bucket, reports, calls, drops, storage_failures, page_count,
+  page_ms_median, page_ms_high, cold_start, waiting_files, waiting_oldest_seconds, rejected_files, problems
+FROM {{fact:sender_windows}}
+"""
+
+PLUGIN_CALLS = """\
+SELECT project, app, plugin, operation, bucket, calls, errors, refused, unavailable, latency_ms_median,
+  latency_ms_max
+FROM {{fact:call_rollups}}
+WHERE scope = 'plugin'
+"""
+
+
+@dataclass
+class SignalView:
+    now: datetime
+    rule: rules.Rule
+    signal: dict[str, Any]
+    since: datetime
+    until: datetime
+    evidence: dict[str, Any] = field(default_factory=dict)
+    trend: list[dict[str, Any]] = field(default_factory=list)
+    context: str = ""  # "sender", "ingest", "plugin" or "" for none
+    rows: list[dict[str, Any]] = field(default_factory=list)
+    history: list[dict[str, Any]] = field(default_factory=list)
+
+
+def _merged(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Each signal once: a signal is written when it starts and again when it ends."""
+    found: dict[tuple, dict[str, Any]] = {}
+    for row in rows:
+        key = (row["subject"], utc(row["started_at"]))
+        if key not in found or row.get("ended_at") is not None:
+            found[key] = row
+    return list(found.values())
+
+
+def _context(evidence: dict[str, Any]) -> str:
+    if "plugin" in evidence and "app" in evidence:
+        return "plugin"
+    if "sender_prefix" in evidence:
+        return "sender"
+    return "ingest" if "project" in evidence else ""
+
+
+def signal(query: Callable[[str], list[dict[str, Any]]], datasets: list[Dataset], every: dict[str, rules.Rule],
+           rule_id: str, subject: str, started_at: datetime, now: datetime) -> SignalView | None:
+    """Everything a signal's page shows, or None when there is no such signal."""
+    import json  # noqa: PLC0415
+
+    rule = every.get(rule_id)
+    if rule is None:
+        return None
+    second = started_at.replace(microsecond=0)
+    found = _merged([r for r in query(SIGNAL.replace("{{rule}}", rules.literal(rule_id))
+                                      .replace("{{from}}", facts.timestamp(second))
+                                      .replace("{{to}}", facts.timestamp(second + timedelta(seconds=1))))
+                     if r["subject"] == subject and utc(r["started_at"]) == started_at])
+    if not found:
+        return None
+    row = found[0]
+    ended = utc(row["ended_at"]) if row.get("ended_at") is not None else None
+    since, until = started_at - BEFORE, min(now, (ended or now) + AFTER)
+    minutes = max(2, int((until - since).total_seconds() // 60) + 2)
+    evidence = json.loads(row["evidence"]) if isinstance(row["evidence"], str) else dict(row["evidence"] or {})
+    out = SignalView(now, rule, row, since, until, evidence)
+
+    def run(text: str) -> list[dict[str, Any]]:
+        return query(rules.render(text, minutes, datasets, [], until))
+
+    def within(r: dict[str, Any]) -> bool:
+        return since <= utc(r["bucket"]) <= until
+
+    if rule.trend is not None:
+        out.trend = sorted((r for r in run(rule.trend.query) if r["subject"] == subject and within(r)),
+                           key=lambda r: r["bucket"])
+    out.context = _context(evidence)
+    project = evidence.get("project", subject.split("/")[0])
+    if out.context == "plugin":
+        rows = [r for r in run(PLUGIN_CALLS) if (r["project"], r["app"], r["plugin"])
+                == (project, evidence["app"], evidence["plugin"])]
+    elif out.context == "sender":
+        rows = [r for r in run(SENDER_WINDOWS) if (r["project"], r["kind"], r["sender_prefix"])
+                == (project, "sender", evidence["sender_prefix"])]
+    elif out.context == "ingest":
+        rows = [r for r in run(SENDER_WINDOWS) if (r["project"], r["kind"]) == (project, "ingest")]
+    else:
+        rows = []
+    out.rows = sorted((r for r in rows if within(r)), key=lambda r: r["bucket"], reverse=True)
+    stamp = facts.timestamp(now)
+    history = query(SIGNAL_HISTORY.replace("{{rule}}", rules.literal(rule_id)).replace("{{now}}", stamp))
+    out.history = sorted((r for r in _merged(history) if r["subject"] == subject),
+                         key=lambda r: utc(r["started_at"]), reverse=True)[:HISTORY]
+    return out
