@@ -29,8 +29,9 @@
 #   4. the sign-in client, as the Secret observability-oidc: register-client.sh, until
 #      the Secret is there. Registering takes an approval record merged into shared-infra
 #      and applied: when it is waiting for that, this stops, and running it again goes on
+#      Then the sign-in proxy starts again, if it's there, so it reads 3's and 4's Secrets
 #   5. the repository's secrets and deploy settings, from Bitwarden: pubkit app-secrets
-#   6. DEPLOY_OBSERVABILITY on, a deploy, and its wait
+#   6. DEPLOY_OBSERVABILITY on, a deploy, and its wait, which sees the proxy ready
 #   7. one run of the evaluator now, and its log; and whether the page answers
 set -euo pipefail
 
@@ -121,6 +122,14 @@ else
   [ "$status" = 0 ] || exit "$status"
 fi
 
+# A new client or cookie secret reaches the proxy only when it starts again. That comes
+# before the deploy, which waits for the proxy: a proxy that needed them would hold the
+# deploy until it timed out. The deploy's wait sees it ready. Before the first deploy
+# there's no proxy, and the deploy makes it with its Secrets in place.
+if k get deployment/oauth2-proxy > /dev/null 2>&1; then
+  k rollout restart deployment/oauth2-proxy > /dev/null
+fi
+
 echo "5/7 the repository's secrets and deploy settings, from Bitwarden"
 "$root/pubkit" app-secrets
 
@@ -136,9 +145,6 @@ for _ in $(seq 30); do
 done
 [ "$run" != "$before" ] || { echo "go-live: the deploy didn't start" >&2; exit 1; }
 gh run watch "$run" -R "$repo" --exit-status > /dev/null
-# A new client or cookie secret reaches the proxy only when it starts again.
-k rollout restart deployment/oauth2-proxy > /dev/null
-k rollout status deployment/oauth2-proxy --timeout=120s > /dev/null
 
 echo "7/7 one run of the evaluator now, and the page"
 job="evaluator-go-live-$(date +%s)"
