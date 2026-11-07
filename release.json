@@ -11,5 +11,6 @@
   "name": "observability",
   "package": "pkg.observability",
   "tag": "PKG-OBSERV-11-2026",
-  "install": "pip install https://github.com/Sustenaut/observability/releases/download/{tag}/observability-{version}-py3-none-any.whl"
+  "install": "pip install https://github.com/Sustenaut/observability/releases/download/{tag}/observability-{version}-py3-none-any.whl",
+  "key": "pub:sha2-256:yuc4tfilajwhv7r3tadl227so6uccj7twxkhjzg6svgvgp3gap7q"
 }

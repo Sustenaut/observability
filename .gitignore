@@ -7,5 +7,7 @@ __pycache__/
 *.egg-info/
 /coverage/
 /corpus/.publet/
+# A pub workspace made at the root by mistake; the release key's is corpus/.publet.
+/.publet/
 # ./with-secrets reads its Bitwarden token from here
 .env
