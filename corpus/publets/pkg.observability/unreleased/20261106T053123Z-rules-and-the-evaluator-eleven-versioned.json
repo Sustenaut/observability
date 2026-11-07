@@ -1,4 +1,0 @@
-{
-  "category": "added",
-  "change": "Rules and the evaluator: eleven versioned YAML rules over the facts, OBSERVABILITY_SENDERS for each project's always-on and on-demand senders, and `observability rules` and `observability evaluate`, which prints the signals starting and ending now"
-}
