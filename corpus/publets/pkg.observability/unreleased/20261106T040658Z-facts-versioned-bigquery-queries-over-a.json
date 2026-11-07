@@ -1,4 +1,0 @@
-{
-  "category": "added",
-  "change": "Facts: versioned BigQuery queries over a project's call log, sender_windows from its status table and call_rollups from its calls, and `observability facts` to list them or print one's query for the datasets configured"
-}
