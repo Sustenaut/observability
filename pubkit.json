@@ -73,8 +73,10 @@
     "gate": "DEPLOY_OBSERVABILITY",
     "needs": [
       {
-        "type": "bitwarden.secret",
-        "name": "observability-reader-key",
+        "type": "gcp.service-account-key",
+        "account": "observability-reader",
+        "project": "sustenaut",
+        "bitwarden": "observability-reader-key",
         "secret": {
           "name": "evaluator-bigquery-key",
           "key": "key.json",
@@ -91,12 +93,20 @@
         }
       },
       {
-        "type": "k8s.secret",
-        "name": "observability-oidc",
-        "keys": [
-          "client-id",
-          "client-secret"
-        ]
+        "type": "auth.sign-in-client",
+        "realm": "team",
+        "role": "observability",
+        "auth": "https://auth.sustenaut.eu/realms/team",
+        "domain": "sustenaut.eu",
+        "host": "observability.sustenaut.eu",
+        "state": "/root/.config/sustenaut-auth/team-sustenaut.eu",
+        "client_name": "sustenaut.eu team sites",
+        "register_app": "../auth/register-app.py",
+        "approvals": "../shared-infra/infra/auth-approvals.json",
+        "access": "https://auth.sustenaut.eu/realms/team/access",
+        "secret": {
+          "name": "observability-oidc"
+        }
       },
       {
         "type": "k8s.manifests",
@@ -106,6 +116,24 @@
         "type": "upstream",
         "name": "storage",
         "health": "https://storage.sustenaut.eu/"
+      },
+      {
+        "type": "storage.tenant",
+        "name": "signals",
+        "storage": "Sustenaut/storage",
+        "url": "https://storage.sustenaut.eu",
+        "write": [
+          "k8s:observability/evaluator"
+        ],
+        "private": true,
+        "inbox": true
+      },
+      {
+        "type": "github.variable-entry",
+        "repository": "Sustenaut/integrations",
+        "variable": "INGEST_SIGNALS",
+        "path": "/tenant",
+        "value": "signals"
       },
       {
         "type": "service.health",

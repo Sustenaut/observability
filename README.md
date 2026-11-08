@@ -213,9 +213,9 @@ BigQuery with the reader's key. `k8s/oauth2-proxy.yaml` signs people in with the
 realm at auth.sustenaut.eu and lets in only those with the role `observability`; who has
 it is the team access page, auth.sustenaut.eu/realms/team/access. Only the proxy may
 reach the page (`k8s/admin/network-policy.yaml`), and the ingress routes everything to
-the proxy. The sign-in client is sustenaut.eu's, for its team sites:
-`k8s/admin/register-client.sh` adds this site to it, approved by a DNS record, and puts it
-in the Secret `observability-oidc`. `go-live.sh` runs it when that Secret isn't there.
+the proxy. The sign-in client is sustenaut.eu's, for its team sites: the deploy walk
+(below) adds this site to it with Sustenaut/auth's `register-app.py`, approved by a DNS
+record, and puts it in the Secret `observability-oidc`.
 
 ## A signal's page
 
@@ -277,23 +277,56 @@ gh variable set OBSERVABILITY_DATASETS -R Sustenaut/observability --body 'calls_
 gh variable set OBSERVABILITY_SENDERS -R Sustenaut/observability --body '{"example": {"app": "always"}}'
 ```
 
-To take it live, or bring it back in step, from this repository's root on a machine
-on the admin tailnet:
+pubkit.json's `deploy` block lists everything else it needs, and pubkit's deploy walk
+checks each and makes what it can. To take it live, or bring it back in step, from a
+checkout of this repository with Sustenaut/auth and Sustenaut/shared-infra checked out
+beside it, on a machine on the admin tailnet, signed in to `gh` and `gcloud`:
 
 ```sh
-./with-secrets k8s/admin/go-live.sh
+./with-secrets ./pubkit deploy walk --fulfil --server sustenaut --zones ../shared-infra/pubkit.json
 ```
 
-It first checks that the two variables are set. The first time, when Bitwarden hasn't got
-the page's cookie secret `observability-cookie-secret`, it asks at a hidden prompt for an
-access token that may write to the Sustenaut project, makes one (`openssl rand -base64 32`)
-and writes it there, never printing it or putting it on disk; later runs read it through
-`./with-secrets`. It puts that secret and the page's network policy on the server, and registers
-the sign-in client while the Secret `observability-oidc` isn't there, stopping while that
-waits for its approval record. It makes the namespace (the server's `sustenaut-app`), puts `observability-reader-key`
-in as the Secret `evaluator-bigquery-key`, sends the repository's secrets and deploy
-settings from Bitwarden (`pubkit app-secrets`), turns `DEPLOY_OBSERVABILITY` on, deploys, and runs
-the evaluator once, printing its log. Every step can run again.
+It checks every need, prints the plan, and waits for a typed `yes`; then it makes each
+missing need it can, over the admin channel (`ssh root@sustenaut`), and checks it again.
+Every run can run again: what is ready is left alone. In order:
+
+| Need | What the walk does |
+|---|---|
+| the namespace `observability` | the server's `sustenaut-app`, which makes it and its deploy identity |
+| `gcp.service-account-key` | a new key of `observability-reader` (Terraform's, in shared-infra), written to Bitwarden as `observability-reader-key`, then put in the Secret `evaluator-bigquery-key`. A key that is no longer one of the account's live keys is drift, and a new one is made |
+| `bitwarden.generated` | the page's cookie secret, `observability-cookie-secret`, made the first time and written to Bitwarden, then put in the Secret `observability-page-secrets` |
+| `auth.sign-in-client` | the Secret `observability-oidc`, made on the server from the client kept there, so its secret never leaves the server |
+| `k8s.manifests` | the page's network policy, `k8s/admin/network-policy.yaml` |
+| the repository's secrets and deploy settings | from Bitwarden, as `pubkit app-secrets` sends them |
+| `DEPLOY_OBSERVABILITY` and the rollout | the gate on, once everything before it is ready, and `deploy.yml` run and waited for |
+| `service.health` | one run of the evaluator, from its CronJob, and `/healthz` |
+
+A new key or cookie secret wants a Bitwarden token that may write: the walk asks for it
+once, at a hidden prompt, and keeps it only in its process. A Secret it changes restarts
+what reads it, such as the sign-in proxy.
+
+Some needs it only checks, and says what a person does:
+
+- **The sign-in client, the first time.** Until sustenaut.eu's client has this site, the
+  need is blocked, and its fix is the command that prints a link and a code: sign in there
+  as the registrant and confirm. auth.sustenaut.eu then answers with a TXT record, and the
+  next `--fulfil` writes it into `../shared-infra/infra/auth-approvals.json`: open a pull
+  request there, merge it, run `./with-secrets terraform -chdir=infra apply` in
+  shared-infra, and walk again. Who may see the page is the `observability` column on the
+  team access page, auth.sustenaut.eu/realms/team/access.
+- **The `signals` tenant** in Sustenaut/storage's `tenants.json`, which lets the evaluator
+  write (`k8s:observability/evaluator`), and integrations' `INGEST_SIGNALS`, whose
+  `tenant` is `signals`, so the ingest pod loads what the evaluator writes. When one is
+  missing, the fix is the entry to add, in storage, or in the owner's state file.
+- **The variables** `OBSERVABILITY_DATASETS` and `OBSERVABILITY_SENDERS`, which must be set.
+- **storage itself** (`upstream`) and the site's DNS record, from shared-infra's zone.
+
+`./pubkit deploy walk` without `--fulfil` (or `deploy check`) changes nothing, and
+`./pubkit deploy walk --offline` checks only the files. `.github/workflows/deploy-check.yml`
+walks it every 30 minutes, read-only, with the deploy key, and writes the walk to
+storage's `plane` tenant; it fails
+when a need is missing, drift or blocked. It can't check out shared-infra, so there the
+DNS record is unknown, which fails nothing.
 
 ## Working on it
 
