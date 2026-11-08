@@ -1,0 +1,4 @@
+{
+  "category": "internal",
+  "change": "pubkit.json declares what the deploy needs (pubkit 0.31.1's deploy block): the evaluator's reader key and the page's cookie secret from Bitwarden, the sign-in client's Secret, the admin network policy, the storage upstream, and the page's health with the evaluator CronJob; pubkit sync --check now fails when the manifests read a Secret the block does not account for; ./with-secrets is now pubkit's one-line wrapper of pubkit secrets run, as pubkit 0.31.1 writes it, replacing the copy of pubkit 0.23.2's script, so a command it runs knows the Bitwarden project (PUBKIT_SECRETS_PROJECT)"
+}

@@ -65,5 +65,53 @@
         "name": "pub-signing-key-observability"
       }
     }
-  ]
+  ],
+  "deploy": {
+    "namespace": "observability",
+    "host": "observability.sustenaut.eu",
+    "workflow": "deploy.yml",
+    "gate": "DEPLOY_OBSERVABILITY",
+    "needs": [
+      {
+        "type": "bitwarden.secret",
+        "name": "observability-reader-key",
+        "secret": {
+          "name": "evaluator-bigquery-key",
+          "key": "key.json",
+          "decode": "base64"
+        }
+      },
+      {
+        "type": "bitwarden.generated",
+        "name": "observability-cookie-secret",
+        "shape": "oauth2-proxy-cookie",
+        "secret": {
+          "name": "observability-page-secrets",
+          "key": "cookie-secret"
+        }
+      },
+      {
+        "type": "k8s.secret",
+        "name": "observability-oidc",
+        "keys": [
+          "client-id",
+          "client-secret"
+        ]
+      },
+      {
+        "type": "k8s.manifests",
+        "path": "k8s/admin/network-policy.yaml"
+      },
+      {
+        "type": "upstream",
+        "name": "storage",
+        "health": "https://storage.sustenaut.eu/"
+      },
+      {
+        "type": "service.health",
+        "path": "/healthz",
+        "job": "cronjob/evaluator"
+      }
+    ]
+  }
 }
