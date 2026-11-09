@@ -66,6 +66,11 @@
       }
     }
   ],
+  "mirror": {
+    "wheels": "https://storage.sustenaut.eu/wheels",
+    "pypi": "https://storage.sustenaut.eu/pypi",
+    "terraform": "https://storage.sustenaut.eu/terraform"
+  },
   "deploy": {
     "providers": [{"distribution": "pubsec", "wheel": "https://github.com/Sustenaut/pubsec/releases/download/v0.1.2/pubsec-0.1.2-py3-none-any.whl", "sha256": "88a68ffd252b49289ae02d0a9f629f3e0f0832c921cb8ee0f1301f958527de17"}],
     "namespace": "observability",
