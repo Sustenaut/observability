@@ -1,4 +1,4 @@
 {
   "category": "changed",
-  "change": "Observability deploys with pubkit 0.31.2's deploy walk (./with-secrets ./pubkit deploy walk --fulfil), which replaces k8s/admin/go-live.sh and k8s/admin/register-client.sh: the reader key is a gcp.service-account-key of observability-reader, made and checked live; the sign-in client an auth.sign-in-client; and the block now checks storage's signals tenant and integrations' INGEST_SIGNALS entry. deploy-check.yml walks it every 30 minutes, read-only, and writes the journal to storage"
+  "change": "Observability deploys with pubkit 0.31.3's deploy walk (./with-secrets ./pubkit deploy walk --fulfil), which replaces k8s/admin/go-live.sh and k8s/admin/register-client.sh: the reader key is a gcp.service-account-key of observability-reader, made and checked live; the sign-in client an auth.sign-in-client; and the block now checks storage's signals tenant and integrations' INGEST_SIGNALS entry. deploy-check.yml walks it every 30 minutes, read-only, and writes the journal to storage"
 }
