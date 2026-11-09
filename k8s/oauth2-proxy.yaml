@@ -1,6 +1,7 @@
 # oauth2-proxy signs people in with the team realm at auth.sustenaut.eu (Keycloak: a
 # passkey or an emailed code), as the client sustenaut.eu registered for its team sites
-# (admin/register-client.sh puts its id and secret in the Secret observability-oidc).
+# (the deploy walk's auth.sign-in-client puts its id and secret in the Secret
+# observability-oidc).
 # It lets in only people with the role observability, from the token's access claim
 # (the team access page at auth.sustenaut.eu/realms/team/access is the one list).
 # Open without sign-in: /healthz.

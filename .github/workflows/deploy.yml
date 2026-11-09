@@ -7,8 +7,8 @@
 # consumer: OBSERVABILITY_DATASETS and OBSERVABILITY_SENDERS, which pubkit.json
 # declares. Their values are kept in the owner's state repository: a change there
 # sets them with `pubkit variables --apply` and runs this workflow. It deploys only once
-# DEPLOY_OBSERVABILITY is "on", which k8s/admin/go-live.sh sets after making the
-# namespace and its Secret. Without SUSTENAUT_SERVER the image is built and pushed,
+# DEPLOY_OBSERVABILITY is "on", which the deploy walk sets once every need before
+# it is ready. Without SUSTENAUT_SERVER the image is built and pushed,
 # and nothing is deployed.
 name: deploy
 
@@ -25,7 +25,7 @@ permissions:
 
 jobs:
   deploy:
-    uses: Sustenaut/pubkit/.github/workflows/k8s-deploy.yml@10b9de8d505ab41bf00fdcc6c014c12855ef6a5e # v0.31.1
+    uses: Sustenaut/pubkit/.github/workflows/k8s-deploy.yml@01c2711869ce046ec875edee83e575b955cfbabf # v0.31.3
     with:
       image: ghcr.io/sustenaut/observability
       deploys: k8s observability DEPLOY_OBSERVABILITY

@@ -2,7 +2,7 @@
 # storage's signals tenant. One run at a time, and one that overruns its two minutes is
 # stopped, so the next starts from what is loaded. Its settings are the ConfigMap
 # evaluator-settings, which deploy.yml renders from the repository's variables; its
-# BigQuery key is the Secret admin/go-live.sh puts in.
+# BigQuery key is the Secret evaluator-bigquery-key, which the deploy walk puts in.
 apiVersion: batch/v1
 kind: CronJob
 metadata:
