@@ -20,8 +20,8 @@
 # instead of PyPI.
 set -euo pipefail
 
-MIRROR=''
-PYPI=''
+MIRROR='https://storage.sustenaut.eu/wheels'
+PYPI='https://storage.sustenaut.eu/pypi'
 PAUSE="${INSTALL_LOCK_PAUSE:-15}"
 
 rewrite() {
@@ -35,7 +35,7 @@ text = open(path, encoding="utf-8").read()
 # A wheel's URL, then its hash, on the same line or the next (after a \).
 pinned = re.compile(r"https://github\.com/[^/\s]+/[^/\s]+/releases/download/[^/\s]+/([^/\s]+\.whl)"
                     r"((?:[ \t]*\\\r?\n)?[ \t]*--hash=sha256:([0-9a-f]{64}))")
-sys.stdout.write(pinned.sub(lambda m: f"/f/{m.group(3)}/{m.group(1)}{m.group(2)}", text))
+sys.stdout.write(pinned.sub(lambda m: f"https://storage.sustenaut.eu/wheels/f/{m.group(3)}/{m.group(1)}{m.group(2)}", text))
 PY
 }
 

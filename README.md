@@ -91,8 +91,8 @@ it as `slack-bot-token`, and `pubkit.json`'s `secrets` list sends it here as
 `SUSTENAUT_SLACK_BOT_TOKEN`:
 
 ```sh
-./with-secrets ./pubkit app-secrets --check   # names and lengths only; sends nothing
-./with-secrets ./pubkit app-secrets
+./with-secrets ./pubsec app-secrets --check   # names and lengths only; sends nothing
+./with-secrets ./pubsec app-secrets
 ```
 
 The channel and the targets aren't secrets: they are the repository variables
@@ -297,7 +297,7 @@ Every run can run again: what is ready is left alone. In order:
 | `bitwarden.generated` | the page's cookie secret, `observability-cookie-secret`, made the first time and written to Bitwarden, then put in the Secret `observability-page-secrets` |
 | `auth.sign-in-client` | the Secret `observability-oidc`, made on the server from the client kept there, so its secret never leaves the server |
 | `k8s.manifests` | the page's network policy, `k8s/admin/network-policy.yaml` |
-| the repository's secrets and deploy settings | from Bitwarden, as `pubkit app-secrets` sends them |
+| the repository's secrets and deploy settings | from Bitwarden, as `pubsec app-secrets` sends them |
 | `DEPLOY_OBSERVABILITY` and the rollout | the gate on, once everything before it is ready, and `deploy.yml` run and waited for |
 | `service.health` | one run of the evaluator, from its CronJob, and `/healthz` |
 

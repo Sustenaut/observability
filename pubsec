@@ -31,6 +31,7 @@ fetch() {
   if [ ! -f "$fetched" ]; then
     mkdir -p "$dir"
     curl -fsSL -o "$fetched.part" "$1" \
+      || curl -fsSL -o "$fetched.part" "https://storage.sustenaut.eu/wheels/f/$2/${1##*/}" \
       || { rm -f "$fetched.part"; echo "pubkit: could not fetch $1" >&2; exit 1; }
     mv "$fetched.part" "$fetched"
   fi
