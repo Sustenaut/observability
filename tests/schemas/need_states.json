@@ -1,0 +1,12 @@
+[
+  {"name": "observed_at", "type": "TIMESTAMP"},
+  {"name": "repository", "type": "STRING"},
+  {"name": "unit", "type": "STRING"},
+  {"name": "need", "type": "STRING"},
+  {"name": "type", "type": "STRING"},
+  {"name": "name", "type": "STRING"},
+  {"name": "grade", "type": "STRING"},
+  {"name": "state", "type": "STRING"},
+  {"name": "walked_from", "type": "STRING"},
+  {"name": "walk_started_at", "type": "TIMESTAMP"}
+]

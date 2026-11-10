@@ -53,6 +53,8 @@ class Warehouse:
         self.db = duckdb.connect()
         self.db.execute("SET TimeZone = 'UTC'")
         self.made: set[str] = set()
+        # The convergence engine's table is always there, as Terraform makes it, if empty.
+        self.need_states([])
 
     def load(self, dataset: str, fixture: str) -> None:
         rows = json.loads((HERE / "fixtures" / f"{fixture}.json").read_text())
@@ -85,6 +87,22 @@ class Warehouse:
                             [row["rule_id"], row.get("rule_version", "1"), row["subject"], row.get("severity", "warning"),
                              moment(row["started_at"]), moment(row["ended_at"]) if row.get("ended_at") else None,
                              json.dumps(row.get("evidence", {})), moment(row["started_at"])])
+
+    def need_states(self, rows: list[dict]) -> None:
+        """convergence.need_states, holding these rows: a walk's time as the fixtures' clock."""
+        if "convergence" not in self.made:
+            self.db.execute("CREATE SCHEMA convergence")
+            columns = ", ".join(f'"{c["name"]}" {TYPES[c["type"]]}' for c in schema("need_states"))
+            self.db.execute(f"CREATE TABLE convergence.need_states ({columns})")
+            self.made.add("convergence")
+        names = [c["name"] for c in schema("need_states")]
+        for row in rows:
+            at = moment(row["walk"])
+            full = {"observed_at": at, "unit": row["repository"].split("/")[1], "type": row["need"].split(":")[0],
+                    "name": row["need"].split(":", 1)[1], "grade": "auto", "walked_from": "plane",
+                    "walk_started_at": at, **{k: v for k, v in row.items() if k != "walk"}}
+            self.db.execute(f"INSERT INTO convergence.need_states VALUES ({', '.join('?' * len(names))})",
+                            [full[n] for n in names])
 
     def typed(self, bigquery_sql: str) -> tuple[list[tuple[str, str]], list[tuple]]:
         """Each column's name and DuckDB type, and the rows."""
