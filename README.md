@@ -97,7 +97,7 @@ it as `slack-bot-token`, and `pubkit.json`'s `secrets` list sends it here as
 
 The channel and the targets aren't secrets: they are the repository variables
 `UPTIME_SLACK_CHANNEL` and `UPTIME_TARGETS`, which `pubkit.json`'s `variables` block
-declares and the owner's state repository keeps (`pubkit variables --apply` sets
+declares and the owner's state repository keeps (`pubfleet variables --apply` sets
 them). To change the targets, change them there. The Bitwarden entries
 `uptime-slack-channel` and `uptime-targets`, which used to send them, can be deleted
 once the state repository tracks them. The bot must be in each channel it posts
@@ -270,7 +270,7 @@ repository variables `OBSERVABILITY_DATASETS` (the call log datasets, comma-sepa
 and `OBSERVABILITY_SENDERS` (YAML or JSON, above), which become the ConfigMap
 `evaluator-settings`. They aren't secrets, so they aren't in Bitwarden: `pubkit.json`'s
 `variables` block names them, and the owner's state repository keeps their values and
-sets them (`pubkit variables --apply`, which then runs the deploy). By hand:
+sets them (`pubfleet variables --apply`, which then runs the deploy). By hand:
 
 ```sh
 gh variable set OBSERVABILITY_DATASETS -R Sustenaut/observability --body 'calls_example,calls_other'
@@ -283,7 +283,7 @@ checkout of this repository with Sustenaut/auth and Sustenaut/shared-infra check
 beside it, on a machine on the admin tailnet, signed in to `gh` and `gcloud`:
 
 ```sh
-./with-secrets ./pubkit deploy walk --fulfil --server sustenaut --zones ../shared-infra/pubkit.json
+./with-secrets ./pubdeploy walk --fulfil --server sustenaut --zones ../shared-infra/pubkit.json
 ```
 
 It checks every need, prints the plan, and waits for a typed `yes`; then it makes each
@@ -321,8 +321,8 @@ Some needs it only checks, and says what a person does:
 - **The variables** `OBSERVABILITY_DATASETS` and `OBSERVABILITY_SENDERS`, which must be set.
 - **storage itself** (`upstream`) and the site's DNS record, from shared-infra's zone.
 
-`./pubkit deploy walk` without `--fulfil` (or `deploy check`) changes nothing, and
-`./pubkit deploy walk --offline` checks only the files. `.github/workflows/deploy-check.yml`
+`./pubdeploy walk` without `--fulfil` (or `pubdeploy check`) changes nothing, and
+`./pubdeploy walk --offline` checks only the files. `.github/workflows/deploy-check.yml`
 walks it every 30 minutes, read-only, with the deploy key, and writes the walk to
 storage's `plane` tenant; it fails
 when a need is missing, drift or blocked. It can't check out shared-infra, so there the
