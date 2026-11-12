@@ -23,6 +23,7 @@ to the query it came from.
 |---|---|---|
 | `sender_windows` | `status` | kind, sender prefix and two-minute bucket |
 | `call_rollups` | `calls` | scope, app, plugin, operation and two-minute bucket |
+| `need_states` | `convergence.need_states` | deploy service need and walk |
 
 - **`sender_windows`** names a sender by its prefix, the pod or Cloud Run
   revision name without its generated suffix, since that suffix changes with
@@ -38,6 +39,11 @@ to the query it came from.
   Its `scope` is `plugin` for calls to outside services and `request_total`
   for the `service-total` and `client-total` operations, which time a whole
   request: a rule about plugins reads only `scope = 'plugin'`.
+- **`need_states`** is what the convergence engine found of each deploy
+  service's needs in each walk, from the one table `convergence.need_states`
+  (the integrations ingest pod loads it from storage's `need-states` buffer),
+  not a project's call log: a fact whose `reads` is `dataset.table` reads that
+  table once, whatever the call log datasets.
 
 Which datasets are read is configuration: `OBSERVABILITY_DATASETS` lists them,
 comma-separated, and a dataset `calls_<project>` is that project's.
@@ -150,6 +156,7 @@ dataset's rows, from its lookback on), and may use `{{now}}`,
 | `plugin_errors` | warning | more than 5% of an app's calls to a plugin failing over 30 minutes, out of at least 20 |
 | `slow_pages` | warning | a warm sender answering slower than 5 seconds in the last 6 minutes |
 | `cold_start_share` | info | the share of a sender's answering windows in the last day that began cold |
+| `need_drift` | warning | a deploy service's need the latest walk found drifted, or missing or blocked after a ready walk in the last 30 days; it ends when a walk finds it ready (an `unknown` need, one the walk couldn't check, is not drift) |
 
 **Senders** are configuration: `OBSERVABILITY_SENDERS` maps each project to
 its sender prefixes, each `always` (silence is a fault) or `on-demand` (it

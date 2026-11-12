@@ -94,6 +94,39 @@ Feature: Rules over the facts
       | slow_pages           |
       | plugin_errors        |
       | cold_start_share     |
+      | need_drift           |
+
+  Scenario: A need that left ready is drift until a walk finds it ready again
+    Given the convergence engine's walks found
+      | walk  | repository          | need                    | state   |
+      | 09:00 | Sustenaut/notifier  | k8s.secret:slack        | ready   |
+      | 09:30 | Sustenaut/notifier  | k8s.secret:slack        | missing |
+      | 10:00 | Sustenaut/notifier  | k8s.secret:slack        | missing |
+      | 09:30 | Sustenaut/notifier  | github.gate:DEPLOY      | ready   |
+      | 10:00 | Sustenaut/notifier  | github.gate:DEPLOY      | ready   |
+      | 09:30 | Sustenaut/auth      | bitwarden.secret:a      | ready   |
+      | 10:00 | Sustenaut/auth      | bitwarden.secret:a      | unknown |
+      | 09:30 | Sustenaut/auth      | dns.site:auth           | missing |
+      | 10:00 | Sustenaut/auth      | dns.site:auth           | missing |
+      | 09:00 | Sustenaut/auth      | k8s.secret:oidc         | ready   |
+      | 09:30 | Sustenaut/auth      | k8s.secret:oidc         | drift   |
+      | 10:00 | Sustenaut/auth      | k8s.secret:oidc         | ready   |
+      | 09:30 | Sustenaut/auth      | github.secret:KEY       | drift   |
+      | 10:00 | Sustenaut/auth      | github.secret:KEY       | drift   |
+      | 09:30 | Sustenaut/auth      | upstream:storage        | ready   |
+      | 10:00 | Sustenaut/auth      | upstream:storage        | blocked |
+    When the rule "need_drift" runs at 10:30
+    Then it finds
+      | subject                                        | state   | found_at | ready_at | page                                                      |
+      | Sustenaut/notifier/notifier/k8s.secret:slack   | missing | 10:00    | 09:00    | https://convergence.sustenaut.eu/services/Sustenaut/notifier |
+      | Sustenaut/auth/auth/github.secret:KEY          | drift   | 10:00    |          | https://convergence.sustenaut.eu/services/Sustenaut/auth     |
+      | Sustenaut/auth/auth/upstream:storage           | blocked | 10:00    | 09:30    | https://convergence.sustenaut.eu/services/Sustenaut/auth     |
+
+  Scenario: No walk, no drift
+    Given the convergence engine's walks found
+      | walk  | repository          | need             | state   |
+    When the rule "need_drift" runs at 10:30
+    Then it finds nothing
 
   Scenario: With no always-on sender, none is silent
     Given the senders are "example: {plan: on-demand}"

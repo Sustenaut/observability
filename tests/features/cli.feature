@@ -15,6 +15,7 @@ Feature: The observability command
     Then it succeeds
     And it prints "sender_windows\tversion 2\treads status"
     And it prints "call_rollups\tversion 2\treads calls"
+    And it prints "need_states\tversion 1\treads convergence.need_states"
 
   Scenario: It prints a fact's query for the datasets configured
     Given OBSERVABILITY_DATASETS is "calls_example, calls_other"
@@ -37,6 +38,11 @@ Feature: The observability command
     When I run observability with "facts sender_windows --dataset 'x; DROP'"
     Then it fails with "'x; DROP' is not a BigQuery dataset name"
 
+  Scenario: A fact that reads one table needs no dataset
+    When I run observability with "facts need_states"
+    Then it succeeds
+    And it prints "FROM convergence.need_states"
+
   Scenario: An unknown fact is named
     When I run observability with "facts nope --dataset calls_example"
-    Then it fails with "no fact nope; there are call_rollups, sender_windows"
+    Then it fails with "no fact nope; there are call_rollups, need_states, sender_windows"

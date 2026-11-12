@@ -1,0 +1,4 @@
+{
+  "category": "added",
+  "change": "Rule need_drift (warning): a deploy service's need the latest walk found drifted, or missing or blocked after a ready walk in the last 30 days, from the new fact need_states, which reads the convergence engine's convergence.need_states; a fact whose reads is dataset.table reads that one table"
+}
