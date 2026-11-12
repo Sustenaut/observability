@@ -37,6 +37,12 @@ def fresh(warehouse: Warehouse, ran: dict, dataset: str, fixture: str) -> None:
     warehouse.load(dataset, fixture)
 
 
+@given("the convergence engine's walks found")
+def walks_found(warehouse: Warehouse, datatable: list[list[str]]) -> None:
+    columns, *rows = datatable
+    warehouse.need_states([dict(zip(columns, row)) for row in rows])
+
+
 @given(parsers.parse('the senders are "{text}"'))
 def senders_are(ran: dict, text: str) -> None:
     ran["senders_text"] = text

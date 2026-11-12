@@ -14,6 +14,10 @@ written `{{dataset}}`, and names that project `{{project}}`; neither is
 in this repository, since which datasets exist is configuration. It reads
 rows from `{{since}}` on, a bucket's start: a rule's lookback, or all of
 them when none is given.
+
+A fact whose `reads` names a table in full, `dataset.table`, reads that one
+table, which is not a project's call log, rather than each dataset in turn:
+the convergence engine's need states, convergence.need_states, are one such.
 """
 
 from __future__ import annotations
@@ -55,8 +59,16 @@ class Fact:
         return (self.template.replace("{{dataset}}", dataset.name).replace("{{project}}", dataset.project)
                 .replace("{{since}}", start))
 
+    @property
+    def fixed(self) -> bool:
+        """Whether it reads one table, `dataset.table`, and not each project's call log."""
+        return "." in self.reads
+
     def union(self, datasets: list[Dataset], since: datetime | None = None) -> str:
-        """The query for several projects at once, their rows together."""
+        """The query for several projects at once, their rows together; a fixed
+        fact's query once, whatever the datasets."""
+        if self.fixed:
+            return self.sql(Dataset(self.reads.split(".")[0]), since)
         return "\nUNION ALL\n".join(f"(\n{self.sql(dataset, since)})" for dataset in datasets)
 
 

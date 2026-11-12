@@ -1,0 +1,38 @@
+id: need_drift
+version: 1
+severity: warning
+summary: A deploy service's need the latest walk found drifted, or missing or blocked after a walk in the last 30 days found it ready.
+# 30 days, so a need that stays broken stays one signal and only a ready walk ends it.
+# The limit that remains: a need missing or blocked for more than 30 days with no ready
+# walk in them falls out of the window, and its signal ends though nothing was fixed.
+# A drifted need breaches on its own, ready before or not: drift is wrong as found.
+lookback_minutes: 43200
+query: |
+  WITH walks AS (
+    SELECT
+      *,
+      ROW_NUMBER() OVER (PARTITION BY repository, unit, need ORDER BY walk_started_at DESC) AS newest
+    FROM {{fact:need_states}}
+  ),
+  last_ready AS (
+    SELECT repository, unit, need, MAX(walk_started_at) AS ready_at
+    FROM walks
+    WHERE state = 'ready'
+    GROUP BY repository, unit, need
+  )
+  SELECT
+    CONCAT(walks.repository, '/', walks.unit, '/', walks.need) AS subject,
+    walks.repository,
+    walks.unit,
+    walks.need,
+    walks.type,
+    walks.state,
+    walks.walked_from,
+    walks.walk_started_at AS found_at,
+    last_ready.ready_at,
+    CONCAT('https://convergence.sustenaut.eu/services/', walks.repository) AS page
+  FROM walks
+  LEFT JOIN last_ready USING (repository, unit, need)
+  WHERE walks.newest = 1
+    AND (walks.state = 'drift'
+         OR (walks.state IN ('missing', 'blocked') AND last_ready.ready_at IS NOT NULL))

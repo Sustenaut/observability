@@ -64,7 +64,7 @@ def main(argv: list[str] | None = None, *, transport: Any = None, storage_token:
         fact = known[args.fact]
         listed = ",".join(args.dataset) if args.dataset else os.environ.get(config.VARIABLE, "")
         datasets = config.datasets(listed)
-        if not datasets:
+        if not datasets and not fact.fixed:
             raise ValueError(f"no dataset: give --dataset or set {config.VARIABLE}")
     except KeyError:
         print(f"observability: no fact {args.fact}; there are {', '.join(known)}", file=sys.stderr)
