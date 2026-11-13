@@ -2,7 +2,7 @@
   "claims": {
     "identity": {
       "class": "archival",
-      "content": "observability 0.1.0 is released as v0.1.0 from commit eabc2f024939142449be774f99e0e10aa0e6c6d5.",
+      "content": "observability 0.2.0 is released as v0.2.0 from commit 4ff597f3e97bd99ba5da34bb97d8f20373c93c49.",
       "data": {
         "columns": [
           {
@@ -27,25 +27,25 @@
         "rows": [
           [
             "observability",
-            "0.1.0",
+            "0.2.0",
             "",
             "",
-            "v0.1.0",
-            "eabc2f024939142449be774f99e0e10aa0e6c6d5"
+            "v0.2.0",
+            "4ff597f3e97bd99ba5da34bb97d8f20373c93c49"
           ]
         ]
       },
-      "scope": "the published release v0.1.0 of observability",
+      "scope": "the published release v0.2.0 of observability",
       "sources": [
         {
           "ref": "observability",
-          "revision": "eabc2f024939142449be774f99e0e10aa0e6c6d5"
+          "revision": "4ff597f3e97bd99ba5da34bb97d8f20373c93c49"
         }
       ]
     },
     "release": {
       "class": "archival",
-      "content": "observability 0.1.0 was released on 2026-11-07 from commit eabc2f024939142449be774f99e0e10aa0e6c6d5 with these changes.",
+      "content": "observability 0.2.0 was released on 2026-11-13 from commit 4ff597f3e97bd99ba5da34bb97d8f20373c93c49 with these changes.",
       "data": {
         "columns": [
           {
@@ -57,52 +57,36 @@
         ],
         "rows": [
           [
-            "added",
-            "The observability command: it reports its version and, for now, nothing else"
-          ],
-          [
-            "added",
-            "Facts: versioned BigQuery queries over a project's call log, sender_windows from its status table and call_rollups from its calls, and `observability facts` to list them or print one's query for the datasets configured"
-          ],
-          [
-            "added",
-            "The uptime probe: every five minutes from GitHub Actions, each target in UPTIME_TARGETS, down after two failed runs in a row, posted to Slack by the Sustenaut bot in the target's own channel or UPTIME_SLACK_CHANNEL"
-          ],
-          [
-            "added",
-            "Rules and the evaluator: eleven versioned YAML rules over the facts, OBSERVABILITY_SENDERS for each project's always-on and on-demand senders, and `observability rules` and `observability evaluate`, which prints the signals starting and ending now"
+            "internal",
+            "pubkit.json declares what the deploy needs (pubkit 0.31.1's deploy block): the evaluator's reader key and the page's cookie secret from Bitwarden, the sign-in client's Secret, the admin network policy, the storage upstream, and the page's health with the evaluator CronJob; pubkit sync --check now fails when the manifests read a Secret the block does not account for; ./with-secrets is now pubkit's one-line wrapper of pubkit secrets run, as pubkit 0.31.1 writes it, replacing the copy of pubkit 0.23.2's script, so a command it runs knows the Bitwarden project (PUBKIT_SECRETS_PROJECT)"
           ],
           [
             "changed",
-            "sender_windows and call_rollups are version 2: each reads its rows from {{since}}, a bucket's start, so a rule reads only its lookback"
+            "Observability deploys with pubkit 0.31.3's deploy walk (./with-secrets ./pubkit deploy walk --fulfil), which replaces k8s/admin/go-live.sh and k8s/admin/register-client.sh: the reader key is a gcp.service-account-key of observability-reader, made and checked live; the sign-in client an auth.sign-in-client; and the block now checks storage's signals tenant and integrations' INGEST_SIGNALS entry. deploy-check.yml walks it every 30 minutes, read-only, and writes the journal to storage"
           ],
           [
             "added",
-            "The evaluator writes its signals to storage's signals tenant when OBSERVABILITY_STORAGE_URL is set, one Avro file a run, and counts those written but not loaded yet as open"
+            "Rule need_drift (warning): a deploy service's need the latest walk found drifted, or missing or blocked after a ready walk in the last 30 days, from the new fact need_states, which reads the convergence engine's convergence.need_states; a fact whose reads is dataset.table reads that one table"
           ],
           [
             "added",
-            "The trends page at observability.sustenaut.eu/trends/integrations, behind the team sign-in: open and recent signals, calls by plugin, sender liveness and page times with cold starts, over the last day"
-          ],
-          [
-            "added",
-            "Each signal has its own page, /signals/<rule_id>/<started>/<subject>, behind the team sign-in: the signal and its evidence, the rule's trend against its threshold, the facts around it, and the rule's other signals for the subject. observability.links makes its address, and rules may have a trend"
+            "Rule pubkit_drift (warning): a repository on the release board whose latest nightly pubkit check failed, its pin behind pubkit's latest release or main failing pubkit sync --check, from the new fact pubkit_checks (platform.pubkit_checks); the evidence is the check, its fix, the pinned and latest versions, the run and the status, and the next night's pass ends it"
           ]
         ]
       },
       "depends": [
         "#identity"
       ],
-      "scope": "the published release v0.1.0 of observability",
+      "scope": "the published release v0.2.0 of observability",
       "sources": [
         {
           "ref": "observability",
-          "revision": "eabc2f024939142449be774f99e0e10aa0e6c6d5"
+          "revision": "4ff597f3e97bd99ba5da34bb97d8f20373c93c49"
         }
       ]
     }
   },
-  "created": "2026-11-07T00:00:00Z",
+  "created": "2026-11-13T00:00:00Z",
   "sections": [
     {
       "heading": "Identity",
