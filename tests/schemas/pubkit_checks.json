@@ -1,0 +1,42 @@
+[
+  {
+    "name": "observed_at",
+    "type": "TIMESTAMP"
+  },
+  {
+    "name": "repository",
+    "type": "STRING"
+  },
+  {
+    "name": "check",
+    "type": "STRING"
+  },
+  {
+    "name": "status",
+    "type": "STRING"
+  },
+  {
+    "name": "pinned",
+    "type": "STRING"
+  },
+  {
+    "name": "latest",
+    "type": "STRING"
+  },
+  {
+    "name": "main_commit",
+    "type": "STRING"
+  },
+  {
+    "name": "run_url",
+    "type": "STRING"
+  },
+  {
+    "name": "fix",
+    "type": "STRING"
+  },
+  {
+    "name": "run_started_at",
+    "type": "TIMESTAMP"
+  }
+]

@@ -1,0 +1,4 @@
+{
+  "category": "added",
+  "change": "Rule pubkit_drift (warning): a repository on the release board whose latest nightly pubkit check failed, its pin behind pubkit's latest release or main failing pubkit sync --check, from the new fact pubkit_checks (platform.pubkit_checks); the evidence is the check, its fix, the pinned and latest versions, the run and the status, and the next night's pass ends it"
+}

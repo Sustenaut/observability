@@ -1,0 +1,29 @@
+id: pubkit_drift
+version: 1
+severity: warning
+summary: A repository on the release board that the latest nightly check found behind pubkit's latest release, or whose main fails pubkit sync --check.
+# The nightly checks every repository each night and records passes too, so the newest
+# row of a repository's check says how it stands: a fail opens a signal, and the next
+# night's pass ends it. Three days, so a night the nightly does not run leaves an open
+# signal open rather than ending it for want of rows. The columns are the evidence the
+# notifier's post shows (six: check, fix, latest, pinned, run_url, status), so the post
+# says what to run; the signal's page has the commit and the times.
+lookback_minutes: 4320
+query: |
+  WITH checks AS (
+    SELECT
+      *,
+      ROW_NUMBER() OVER (PARTITION BY repository, `check` ORDER BY observed_at DESC) AS newest
+    FROM {{fact:pubkit_checks}}
+  )
+  SELECT
+    CONCAT(repository, '/', `check`) AS subject,
+    `check`,
+    fix,
+    latest,
+    pinned,
+    run_url,
+    status
+  FROM checks
+  WHERE newest = 1
+    AND status = 'fail'
