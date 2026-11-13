@@ -3,8 +3,8 @@
   "corpus": {
     "domain": "pub:sha2-256:thj5bieiubik5xfwxfmfubrgr2mqxd5yibg2z4s7bwhgr2oz7rkq",
     "generation": {
-      "cid": "pub:sha2-256:huqcxqngfn4bhjysxsn6u2hxxce3ta6ubcgjsyhw73oryenog5oq",
-      "index": 0
+      "cid": "pub:sha2-256:kvjnjnl62g7iglvwv3w6ec34ovdokq5zdn4bcnaq3kfxkfhsvmrq",
+      "index": 1
     },
     "imports": {},
     "key": "pub:sha2-256:yuc4tfilajwhv7r3tadl227so6uccj7twxkhjzg6svgvgp3gap7q",
@@ -18,8 +18,8 @@
     ]
   },
   "publets": [
-    {"slug": "pkg.observability", "kind": "doc", "tag": "PKG-OBSERV-11-2026", "source": "publets/pkg.observability", "cid": "pub:sha2-256:wgfbepvxaphjxbufm6c35gza6jvzmd3j4gk22kdnq36ih3plmk6q", "genesis": "pub:sha2-256:wgfbepvxaphjxbufm6c35gza6jvzmd3j4gk22kdnq36ih3plmk6q", "deps": ["pkg.observability#identity", "pkg.observability#release"]},
-    {"slug": "pkg.observability#identity", "kind": "claim", "source": "publets/pkg.observability", "cid": "pub:sha2-256:emvca2dwctxr3zmakjdreytu2uosht65xcdyws6c72mmcl5auesa", "genesis": "pub:sha2-256:emvca2dwctxr3zmakjdreytu2uosht65xcdyws6c72mmcl5auesa", "deps": []},
-    {"slug": "pkg.observability#release", "kind": "claim", "source": "publets/pkg.observability", "cid": "pub:sha2-256:3zez3ehezsfgtqin3rkzfxmgfnhnzxsqykebd6whluqnk6is43wq", "genesis": "pub:sha2-256:3zez3ehezsfgtqin3rkzfxmgfnhnzxsqykebd6whluqnk6is43wq", "deps": ["pkg.observability#identity"]}
+    {"slug": "pkg.observability", "kind": "doc", "tag": "PKG-OBSERV-11-2026", "source": "publets/pkg.observability", "cid": "pub:sha2-256:2algivkdgpjtfjojspypsvt6gzq2xj4khv7ertc6nrrgsezxsm3a", "genesis": "pub:sha2-256:wgfbepvxaphjxbufm6c35gza6jvzmd3j4gk22kdnq36ih3plmk6q", "deps": ["pkg.observability#identity", "pkg.observability#release"]},
+    {"slug": "pkg.observability#identity", "kind": "claim", "source": "publets/pkg.observability", "cid": "pub:sha2-256:4xkfg6ivx7bxaqoi74umfgnlfb645ywhqmwxjqwadhpdkudgglaa", "genesis": "pub:sha2-256:emvca2dwctxr3zmakjdreytu2uosht65xcdyws6c72mmcl5auesa", "deps": []},
+    {"slug": "pkg.observability#release", "kind": "claim", "source": "publets/pkg.observability", "cid": "pub:sha2-256:5efsccqez72fygii5bevx33s2gogkvhxe4vozorkctn7edi5bfea", "genesis": "pub:sha2-256:3zez3ehezsfgtqin3rkzfxmgfnhnzxsqykebd6whluqnk6is43wq", "deps": ["pkg.observability#identity"]}
   ]
 }
