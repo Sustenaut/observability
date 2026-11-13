@@ -95,6 +95,7 @@ Feature: Rules over the facts
       | plugin_errors        |
       | cold_start_share     |
       | need_drift           |
+      | pubkit_drift         |
 
   Scenario: A need that left ready is drift until a walk finds it ready again
     Given the convergence engine's walks found
@@ -121,6 +122,28 @@ Feature: Rules over the facts
       | Sustenaut/notifier/notifier/k8s.secret:slack   | missing | 10:00    | 09:00    | https://convergence.sustenaut.eu/services/Sustenaut/notifier |
       | Sustenaut/auth/auth/github.secret:KEY          | drift   | 10:00    |          | https://convergence.sustenaut.eu/services/Sustenaut/auth     |
       | Sustenaut/auth/auth/upstream:storage           | blocked | 10:00    | 09:30    | https://convergence.sustenaut.eu/services/Sustenaut/auth     |
+
+  Scenario: A check failing in the latest night opens a signal, and the next night's pass ends it
+    Given the nightly checks found
+      | night | repository           | check | status  | pinned | latest | fix                                               | run_url |
+      | 08:00 | Sustenaut/pubhost    | pin   | fail    | 0.35.1 | 0.37.0 | `git latest && ./pubkit bump`, then open its PR   |         |
+      | 09:00 | Sustenaut/pubhost    | pin   | fail    | 0.35.1 | 0.37.0 | `git latest && ./pubkit bump`, then open its PR   |         |
+      | 08:00 | Sustenaut/pubtheme   | sync  | fail    | 0.37.0 | 0.37.0 | `git latest && ./pubkit sync`, then open its PR   | https://github.com/run/7 |
+      | 09:00 | Sustenaut/pubtheme   | sync  | pass    | 0.37.0 | 0.37.0 |                                                   | https://github.com/run/8 |
+      | 09:00 | Sustenaut/pubtheme   | pin   | pass    | 0.37.0 | 0.37.0 |                                                   |         |
+      | 09:00 | Sustenaut/docs       | pin   | unknown |        | 0.37.0 |                                                   |         |
+      | 09:00 | Sustenaut/ui         | sync  | fail    | 0.37.0 | 0.37.0 | `git latest && ./pubkit sync`, then open its PR   | https://github.com/run/9 |
+    When the rule "pubkit_drift" runs at 10:30
+    Then it finds
+      | subject                | check | status | pinned | latest | fix                                             | run_url                  |
+      | Sustenaut/pubhost/pin  | pin   | fail   | 0.35.1 | 0.37.0 | `git latest && ./pubkit bump`, then open its PR |                          |
+      | Sustenaut/ui/sync      | sync  | fail   | 0.37.0 | 0.37.0 | `git latest && ./pubkit sync`, then open its PR | https://github.com/run/9 |
+
+  Scenario: No night, no drift
+    Given the nightly checks found
+      | night | repository | check | status |
+    When the rule "pubkit_drift" runs at 10:30
+    Then it finds nothing
 
   Scenario: No walk, no drift
     Given the convergence engine's walks found

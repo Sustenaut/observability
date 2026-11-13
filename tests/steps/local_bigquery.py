@@ -55,6 +55,8 @@ class Warehouse:
         self.made: set[str] = set()
         # The convergence engine's table is always there, as Terraform makes it, if empty.
         self.need_states([])
+        # And the platform's pubkit checks, likewise.
+        self.pubkit_checks([])
 
     def load(self, dataset: str, fixture: str) -> None:
         rows = json.loads((HERE / "fixtures" / f"{fixture}.json").read_text())
@@ -102,6 +104,21 @@ class Warehouse:
                     "name": row["need"].split(":", 1)[1], "grade": "auto", "walked_from": "plane",
                     "walk_started_at": at, **{k: v for k, v in row.items() if k != "walk"}}
             self.db.execute(f"INSERT INTO convergence.need_states VALUES ({', '.join('?' * len(names))})",
+                            [full[n] for n in names])
+
+    def pubkit_checks(self, rows: list[dict]) -> None:
+        """platform.pubkit_checks, holding these rows: a night's check time as the fixtures' clock."""
+        if "platform" not in self.made:
+            self.db.execute("CREATE SCHEMA platform")
+            columns = ", ".join(f'"{c["name"]}" {TYPES[c["type"]]}' for c in schema("pubkit_checks"))
+            self.db.execute(f"CREATE TABLE platform.pubkit_checks ({columns})")
+            self.made.add("platform")
+        names = [c["name"] for c in schema("pubkit_checks")]
+        for row in rows:
+            at = moment(row["night"])
+            full = {"observed_at": at, "pinned": "", "latest": "", "main_commit": "", "run_url": "", "fix": "",
+                    "run_started_at": at, **{k: v for k, v in row.items() if k != "night"}}
+            self.db.execute(f"INSERT INTO platform.pubkit_checks VALUES ({', '.join('?' * len(names))})",
                             [full[n] for n in names])
 
     def typed(self, bigquery_sql: str) -> tuple[list[tuple[str, str]], list[tuple]]:

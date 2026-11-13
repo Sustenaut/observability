@@ -24,6 +24,7 @@ to the query it came from.
 | `sender_windows` | `status` | kind, sender prefix and two-minute bucket |
 | `call_rollups` | `calls` | scope, app, plugin, operation and two-minute bucket |
 | `need_states` | `convergence.need_states` | deploy service need and walk |
+| `pubkit_checks` | `platform.pubkit_checks` | repository, check and night |
 
 - **`sender_windows`** names a sender by its prefix, the pod or Cloud Run
   revision name without its generated suffix, since that suffix changes with
@@ -44,6 +45,12 @@ to the query it came from.
   (the integrations ingest pod loads it from storage's `need-states` buffer),
   not a project's call log: a fact whose `reads` is `dataset.table` reads that
   table once, whatever the call log datasets.
+- **`pubkit_checks`** is how each repository on the release board stood against
+  pubkit, night by night: release-controlplane's nightly records its `pin` (the pubkit
+  it pins against the latest release) and `sync` (main's `pubkit sync --check`), passes
+  as well as failures, with the versions, main's commit and run, and the fix, in the
+  one append-only table `platform.pubkit_checks` (loaded from storage's
+  `pubkit-checks` buffer).
 
 Which datasets are read is configuration: `OBSERVABILITY_DATASETS` lists them,
 comma-separated, and a dataset `calls_<project>` is that project's.
@@ -157,6 +164,7 @@ dataset's rows, from its lookback on), and may use `{{now}}`,
 | `slow_pages` | warning | a warm sender answering slower than 5 seconds in the last 6 minutes |
 | `cold_start_share` | info | the share of a sender's answering windows in the last day that began cold |
 | `need_drift` | warning | a deploy service's need the latest walk found drifted, or missing or blocked after a ready walk in the last 30 days; it ends when a walk finds it ready (an `unknown` need, one the walk couldn't check, is not drift) |
+| `pubkit_drift` | warning | a repository on the release board whose latest nightly check (`platform.pubkit_checks`) failed: it pins an older pubkit than the latest release, or main fails `pubkit sync --check`; the post gives the fix, and the next night's pass ends it. The nightly records passes too, so the table is the night-by-night record for audits |
 
 **Senders** are configuration: `OBSERVABILITY_SENDERS` maps each project to
 its sender prefixes, each `always` (silence is a fault) or `on-demand` (it

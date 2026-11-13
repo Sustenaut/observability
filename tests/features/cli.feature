@@ -45,4 +45,4 @@ Feature: The observability command
 
   Scenario: An unknown fact is named
     When I run observability with "facts nope --dataset calls_example"
-    Then it fails with "no fact nope; there are call_rollups, need_states, sender_windows"
+    Then it fails with "no fact nope; there are call_rollups, need_states, pubkit_checks, sender_windows"
