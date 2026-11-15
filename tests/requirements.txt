@@ -21,4 +21,4 @@ httpx==0.28.1
 # pubsec offers the deploy block's need types (gcp.service-account-key, bitwarden.*,
 # k8s.secret...), so `pubkit sync --check` needs it beside pubkit: the same wheel
 # as pubkit.json's deploy.providers.
-pubsec @ https://github.com/Sustenaut/pubsec/releases/download/v0.1.2/pubsec-0.1.2-py3-none-any.whl
+pubsec @ https://github.com/Sustenaut/pubsec/releases/download/v0.2.2/pubsec-0.2.2-py3-none-any.whl
