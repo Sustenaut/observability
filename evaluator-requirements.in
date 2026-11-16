@@ -1,7 +1,9 @@
 # What the image installs: the evaluator and page extras, pinned. The lock beside
 # it (evaluator-requirements.lock) holds every package with its hashes; regenerate it
 # with: uv pip compile --generate-hashes --python-version 3.14 evaluator-requirements.in -o evaluator-requirements.lock
+# `pubkit bump` moves neither file: move integrations here with pyproject.toml's evaluator extra
+# and tests/requirements.txt (tests/steps/test_cli.py checks the three name one wheel).
 pyyaml==6.0.3
-integrations[github-app,storage-sink] @ https://github.com/Sustenaut/integrations/releases/download/v0.14.0/integrations-0.14.0-py3-none-any.whl
+integrations[github-app,storage-sink] @ https://github.com/Sustenaut/integrations/releases/download/v0.14.3/integrations-0.14.3-py3-none-any.whl
 fastapi==0.142.2
 uvicorn==0.54.0
