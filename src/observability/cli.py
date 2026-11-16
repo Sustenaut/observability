@@ -3,8 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import base64
-import binascii
 import json
 import os
 import sys
@@ -14,7 +12,7 @@ from typing import Any
 
 from observability import __version__, config, facts, senders
 
-KEY = "OBSERVABILITY_BIGQUERY_KEY"
+CREDENTIAL = "OBSERVABILITY_GOOGLE_CREDENTIAL_FILE"
 # With it set, the evaluator writes its signals to storage's signals tenant, and
 # reads back those not loaded yet; without it, it only prints them.
 STORAGE = "OBSERVABILITY_STORAGE_URL"
@@ -76,16 +74,19 @@ def main(argv: list[str] | None = None, *, transport: Any = None, storage_token:
     return 0
 
 
-def key(text: str) -> dict:
-    """A service account's key: its JSON, or that JSON in base64, as Bitwarden keeps it."""
-    for attempt in (text, None):
-        try:
-            found = json.loads(attempt if attempt is not None else base64.b64decode(text, validate=True))
-        except (ValueError, binascii.Error):
-            continue
-        if isinstance(found, dict) and {"project_id", "client_email", "private_key", "token_uri"} <= set(found):
-            return found
-    raise ValueError(f"{KEY} is not a service account's key")
+def credential(path: str) -> dict:
+    """Google's credential for BigQuery, from the file at `path`: an external_account
+    credential (Workload Identity, google-credential.yaml) or a service account's key."""
+    if not path:
+        raise ValueError(f"no credential: set {CREDENTIAL}")
+    try:
+        found = json.loads(Path(path).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        raise ValueError(f"{CREDENTIAL} is not a readable JSON file") from None
+    if isinstance(found, dict) and (found.get("type") == "external_account" or
+                                    {"project_id", "client_email", "private_key", "token_uri"} <= set(found)):
+        return found
+    raise ValueError(f"{CREDENTIAL} is neither an external_account credential nor a service account's key")
 
 
 def evaluate(when: str | None, transport: Any, storage_token: Any = None) -> int:
@@ -103,7 +104,7 @@ def evaluate(when: str | None, transport: Any, storage_token: Any = None) -> int
         raise ValueError(f"no dataset: set {config.VARIABLE}")
     expected = senders.parse(os.environ.get(senders.VARIABLE, ""), datasets)
     caller = Caller("Sustenaut/observability", "evaluator", transport=transport)
-    warehouse = Warehouse(caller, key(os.environ.get(KEY, "")))
+    warehouse = Warehouse(caller, credential(os.environ.get(CREDENTIAL, "")))
     url = os.environ.get(STORAGE, "")
     signals = store.Store(Storage(caller, TENANT, base_url=url, token=storage_token,
                                   token_file=None if storage_token else Path(TOKEN_FILE))) if url else None

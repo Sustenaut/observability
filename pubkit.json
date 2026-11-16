@@ -79,15 +79,20 @@
     "gate": "DEPLOY_OBSERVABILITY",
     "needs": [
       {
-        "type": "gcp.service-account-key",
+        "type": "gcp.workload-identity",
         "account": "observability-reader",
         "project": "sustenaut",
-        "bitwarden": "observability-reader-key",
-        "secret": {
-          "name": "evaluator-bigquery-key",
-          "key": "key.json",
-          "decode": "base64"
-        }
+        "serviceaccount": "evaluator",
+        "pool": "projects/948171295184/locations/global/workloadIdentityPools/services",
+        "granted_in": "Sustenaut/shared-infra's infra/services-identity.tf"
+      },
+      {
+        "type": "gcp.workload-identity",
+        "account": "observability-reader",
+        "project": "sustenaut",
+        "serviceaccount": "page",
+        "pool": "projects/948171295184/locations/global/workloadIdentityPools/services",
+        "granted_in": "Sustenaut/shared-infra's infra/services-identity.tf"
       },
       {
         "type": "bitwarden.generated",

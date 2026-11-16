@@ -190,7 +190,7 @@ of its signals, because not knowing isn't all clear, and the run then exits
 |---|---|
 | `OBSERVABILITY_DATASETS` | the call log datasets to read |
 | `OBSERVABILITY_SENDERS` | the senders each project should have (above) |
-| `OBSERVABILITY_BIGQUERY_KEY` | `observability-reader`'s key: its JSON, or that JSON in base64 |
+| `OBSERVABILITY_GOOGLE_CREDENTIAL_FILE` | the Google credential's file: in the cluster, `k8s/google-credential.yaml`'s external_account credential, so the pod acts as `observability-reader` through Workload Identity with no key; a service account's key file works too |
 | `OBSERVABILITY_STORAGE_URL` | storage's address, to write the signals there (optional) |
 
 It needs the `evaluator` extra (`pip install '.[evaluator]'`): PyYAML, and
@@ -308,7 +308,7 @@ Every run can run again: what is ready is left alone. In order:
 | Need | What the walk does |
 |---|---|
 | the namespace `observability` | the server's `sustenaut-app`, which makes it and its deploy identity |
-| `gcp.service-account-key` | a new key of `observability-reader` (Terraform's, in shared-infra), written to Bitwarden as `observability-reader-key`, then put in the Secret `evaluator-bigquery-key`. A key that is no longer one of the account's live keys is drift, and a new one is made |
+| `gcp.workload-identity`, for `evaluator` and `page` | checks that each ServiceAccount may act as `observability-reader` through shared-infra's `services` pool; the grant is Terraform's (`infra/services-identity.tf`), so a missing one is proposed, never made. There is no key: the organization forbids them |
 | `bitwarden.generated` | the page's cookie secret, `observability-cookie-secret`, made the first time and written to Bitwarden, then put in the Secret `observability-page-secrets` |
 | `auth.sign-in-client` | the Secret `observability-oidc`, made on the server from the client kept there, so its secret never leaves the server |
 | `k8s.manifests` | the page's network policy, `k8s/admin/network-policy.yaml` |

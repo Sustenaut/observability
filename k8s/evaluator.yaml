@@ -2,7 +2,7 @@
 # storage's signals tenant. One run at a time, and one that overruns its two minutes is
 # stopped, so the next starts from what is loaded. Its settings are the ConfigMap
 # evaluator-settings, which deploy.yml renders from the repository's variables; its
-# BigQuery key is the Secret evaluator-bigquery-key, which the deploy walk puts in.
+# BigQuery credential is the ConfigMap google-credential: no key (google-credential.yaml).
 apiVersion: batch/v1
 kind: CronJob
 metadata:
@@ -39,11 +39,8 @@ spec:
               env:
                 - name: OBSERVABILITY_STORAGE_URL
                   value: https://storage.sustenaut.eu
-                - name: OBSERVABILITY_BIGQUERY_KEY
-                  valueFrom:
-                    secretKeyRef:
-                      name: evaluator-bigquery-key
-                      key: key.json
+                - name: OBSERVABILITY_GOOGLE_CREDENTIAL_FILE
+                  value: /etc/google/credential.json
               envFrom:
                 - configMapRef:
                     name: evaluator-settings
@@ -62,6 +59,12 @@ spec:
                 - name: storage-token
                   mountPath: /var/run/secrets/storage.sustenaut.eu
                   readOnly: true
+                - name: google-token
+                  mountPath: /var/run/secrets/google
+                  readOnly: true
+                - name: google-credential
+                  mountPath: /etc/google
+                  readOnly: true
           volumes:
             - name: storage-token
               projected:
@@ -70,3 +73,13 @@ spec:
                       audience: storage.sustenaut.eu
                       path: token
                       expirationSeconds: 600
+            - name: google-token
+              projected:
+                sources:
+                  - serviceAccountToken:
+                      audience: "//iam.googleapis.com/projects/948171295184/locations/global/workloadIdentityPools/services/providers/sustenaut-k3s"
+                      path: token
+                      expirationSeconds: 3600
+            - name: google-credential
+              configMap:
+                name: google-credential

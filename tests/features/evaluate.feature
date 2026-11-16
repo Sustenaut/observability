@@ -9,7 +9,7 @@ Feature: The evaluator
     Given the dataset "calls_example" holds "unhealthy"
     And OBSERVABILITY_DATASETS is "calls_example"
     And OBSERVABILITY_SENDERS is "example: {app: always, web: always}"
-    And a service account key in OBSERVABILITY_BIGQUERY_KEY
+    And a service account key in the credential file
 
   Scenario: Every breach starts a signal
     When the evaluator runs at 10:30
@@ -69,10 +69,9 @@ Feature: The evaluator
     And it starts "sender_silent" for "example/web" with "last_seen" "2026-11-01T10:10:30Z"
     And it starts "sender_silent" for "example/gone"
 
-  Scenario: A key in base64, as Bitwarden keeps it, is taken
-    Given the service account key is in base64
-    When the evaluator runs at 10:30
-    Then it succeeds
+  Scenario: An external_account credential, the pod's with no key, is taken through Workload Identity
+    Given the credential file holds google-credential.yaml's external_account credential
+    Then the evaluator's warehouse trades the pod's token for observability-reader's, in project sustenaut
 
   Scenario: Without a time it evaluates now
     When the evaluator runs now
@@ -92,8 +91,14 @@ Feature: The evaluator
       | OBSERVABILITY_SENDERS      | elsewhere: {app: always}  | OBSERVABILITY_SENDERS names elsewhere           |
       | OBSERVABILITY_SENDERS      | example: {}               | example maps each sender prefix                 |
       | OBSERVABILITY_SENDERS      | example: {app: sometimes} | example/app is always or on-demand, not sometimes |
-      | OBSERVABILITY_BIGQUERY_KEY | {"not": "a key"}          | OBSERVABILITY_BIGQUERY_KEY is not a service account's key |
-      | OBSERVABILITY_BIGQUERY_KEY | not json                  | OBSERVABILITY_BIGQUERY_KEY is not a service account's key |
+      | OBSERVABILITY_GOOGLE_CREDENTIAL_FILE |                 | no credential: set OBSERVABILITY_GOOGLE_CREDENTIAL_FILE |
+      | OBSERVABILITY_GOOGLE_CREDENTIAL_FILE | /nonexistent    | OBSERVABILITY_GOOGLE_CREDENTIAL_FILE is not a readable JSON file |
+
+  Scenario: A credential file that is neither kind is said
+    Given the credential file holds {"not": "a key"}
+    When the evaluator runs at 10:30
+    Then it fails with code 2
+    And stderr mentions "OBSERVABILITY_GOOGLE_CREDENTIAL_FILE is neither an external_account credential nor a service account's key"
 
   Scenario: BigQuery's answers are read by their types
     When BigQuery answers a row of every type
