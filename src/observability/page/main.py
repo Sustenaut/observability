@@ -14,11 +14,11 @@ def build():  # pragma: no cover - the pod's wiring, with its real credential
     from integrations.calls import Caller
 
     from observability.bigquery import Warehouse
-    from observability.cli import CREDENTIAL, credential
+    from observability.cli import GOOGLE_FILE, credential
 
     datasets = config.datasets(os.environ[config.VARIABLE])
     expected = senders.parse(os.environ.get(senders.VARIABLE, ""), datasets)
-    warehouse = Warehouse(Caller("Sustenaut/observability", "page"), credential(os.environ[CREDENTIAL]))
+    warehouse = Warehouse(Caller("Sustenaut/observability", "page"), credential(os.environ[GOOGLE_FILE]))
     from observability import rules
 
     every = rules.load()

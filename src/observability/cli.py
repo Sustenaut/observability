@@ -12,7 +12,8 @@ from typing import Any
 
 from observability import __version__, config, facts, senders
 
-CREDENTIAL = "OBSERVABILITY_GOOGLE_CREDENTIAL_FILE"
+# The variable that names Google's credential file (its path, never a value).
+GOOGLE_FILE = "OBSERVABILITY_GOOGLE_CREDENTIAL_FILE"
 # With it set, the evaluator writes its signals to storage's signals tenant, and
 # reads back those not loaded yet; without it, it only prints them.
 STORAGE = "OBSERVABILITY_STORAGE_URL"
@@ -78,15 +79,15 @@ def credential(path: str) -> dict:
     """Google's credential for BigQuery, from the file at `path`: an external_account
     credential (Workload Identity, google-credential.yaml) or a service account's key."""
     if not path:
-        raise ValueError(f"no credential: set {CREDENTIAL}")
+        raise ValueError(f"no credential: set {GOOGLE_FILE}")
     try:
         found = json.loads(Path(path).read_text(encoding="utf-8"))
     except (OSError, ValueError):
-        raise ValueError(f"{CREDENTIAL} is not a readable JSON file") from None
+        raise ValueError(f"{GOOGLE_FILE} is not a readable JSON file") from None
     if isinstance(found, dict) and (found.get("type") == "external_account" or
                                     {"project_id", "client_email", "private_key", "token_uri"} <= set(found)):
         return found
-    raise ValueError(f"{CREDENTIAL} is neither an external_account credential nor a service account's key")
+    raise ValueError(f"{GOOGLE_FILE} is neither an external_account credential nor a service account's key")
 
 
 def evaluate(when: str | None, transport: Any, storage_token: Any = None) -> int:
@@ -104,7 +105,7 @@ def evaluate(when: str | None, transport: Any, storage_token: Any = None) -> int
         raise ValueError(f"no dataset: set {config.VARIABLE}")
     expected = senders.parse(os.environ.get(senders.VARIABLE, ""), datasets)
     caller = Caller("Sustenaut/observability", "evaluator", transport=transport)
-    warehouse = Warehouse(caller, credential(os.environ.get(CREDENTIAL, "")))
+    warehouse = Warehouse(caller, credential(os.environ.get(GOOGLE_FILE, "")))
     url = os.environ.get(STORAGE, "")
     signals = store.Store(Storage(caller, TENANT, base_url=url, token=storage_token,
                                   token_file=None if storage_token else Path(TOKEN_FILE))) if url else None
