@@ -393,7 +393,8 @@ def test_the_projected_token_the_credential_and_the_provider_name_one_audience()
     assert credential["audience"] == provider
     for name, path in (("evaluator", ["spec", "jobTemplate", "spec", "template", "spec"]),
                        ("page", ["spec", "template", "spec"])):
-        spec = yaml.safe_load((ROOT / "k8s" / f"{name}.yaml").read_text(encoding="utf-8"))
+        spec = next(d for d in yaml.safe_load_all((ROOT / "k8s" / f"{name}.yaml").read_text(encoding="utf-8"))
+                    if d and d["kind"] in ("CronJob", "Deployment"))
         for key in path:
             spec = spec[key]
         assert spec["serviceAccountName"] == name and spec["automountServiceAccountToken"] is False

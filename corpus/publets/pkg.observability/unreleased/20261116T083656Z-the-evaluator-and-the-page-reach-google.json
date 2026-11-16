@@ -1,0 +1,4 @@
+{
+  "category": "changed",
+  "change": "the evaluator and the page reach Google with no key: OBSERVABILITY_GOOGLE_CREDENTIAL_FILE names an external_account credential (k8s/google-credential.yaml), traded through Workload Identity for observability-reader (or a key file); OBSERVABILITY_BIGQUERY_KEY is gone, and the deploy block checks gcp.workload-identity for evaluator and page instead of a key"
+}
