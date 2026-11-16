@@ -52,7 +52,8 @@ def fails(result: dict, message: str) -> None:
     assert f"observability: {message}" in result["done"].stderr, result["done"].stderr
 
 
-def test_the_image_the_package_and_the_tests_install_one_integrations_wheel():
+@then("the image the package and the tests install one integrations wheel")
+def the_image_the_package_and_the_tests_install_one_integrations_wheel():
     """integrations is pinned in three places, and CI builds no image: the Dockerfile's lock
     (evaluator-requirements.in and .lock), pyproject.toml's extra and tests/requirements.txt
     must name one wheel, or the deploy's build is the first to find out."""
