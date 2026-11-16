@@ -50,3 +50,18 @@ def prints(result: dict, text: str) -> None:
 def fails(result: dict, message: str) -> None:
     assert result["done"].returncode == 2, result["done"].stdout
     assert f"observability: {message}" in result["done"].stderr, result["done"].stderr
+
+
+def test_the_image_the_package_and_the_tests_install_one_integrations_wheel():
+    """integrations is pinned in three places, and CI builds no image: the Dockerfile's lock
+    (evaluator-requirements.in and .lock), pyproject.toml's extra and tests/requirements.txt
+    must name one wheel, or the deploy's build is the first to find out."""
+    import re
+
+    root = Path(__file__).resolve().parents[2]
+    wheel = re.compile(r"https://github\.com/Sustenaut/integrations/releases/download/\S+?\.whl")
+    found = {name: set(wheel.findall((root / name).read_text(encoding="utf-8")))
+             for name in ("pyproject.toml", "tests/requirements.txt", "evaluator-requirements.in",
+                          "evaluator-requirements.lock")}
+    assert all(len(urls) == 1 for urls in found.values()), found
+    assert len(set().union(*found.values())) == 1, found
