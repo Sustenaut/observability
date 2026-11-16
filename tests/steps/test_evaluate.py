@@ -382,7 +382,8 @@ def nothing_written(google: Google, run: dict) -> None:
     assert "wrote" not in run["err"]
 
 
-def test_the_projected_token_the_credential_and_the_provider_name_one_audience():
+@then("the projected token the credential and the provider name one audience")
+def the_projected_token_the_credential_and_the_provider_name_one_audience():
     """A mismatch fails only at run time, as Google's STS refusing the token: the
     evaluator's and the page's projected tokens, and the credential's audience, are
     the services pool's provider (Sustenaut/shared-infra's services_google output)."""

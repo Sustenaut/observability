@@ -160,3 +160,6 @@ Feature: The evaluator
     When the evaluator runs at 10:30
     Then it fails with code 2
     And stderr mentions "could not read the open signals"
+
+  Scenario: The projected token the credential and the provider name one audience
+    Then the projected token the credential and the provider name one audience
