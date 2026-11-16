@@ -10,15 +10,15 @@ from observability.page.app import create_app
 from observability.page.queries import signal, trends
 
 
-def build():  # pragma: no cover - the pod's wiring, with real keys
+def build():  # pragma: no cover - the pod's wiring, with its real credential
     from integrations.calls import Caller
 
     from observability.bigquery import Warehouse
-    from observability.cli import KEY, key
+    from observability.cli import GOOGLE_FILE, credential
 
     datasets = config.datasets(os.environ[config.VARIABLE])
     expected = senders.parse(os.environ.get(senders.VARIABLE, ""), datasets)
-    warehouse = Warehouse(Caller("Sustenaut/observability", "page"), key(os.environ[KEY]))
+    warehouse = Warehouse(Caller("Sustenaut/observability", "page"), credential(os.environ[GOOGLE_FILE]))
     from observability import rules
 
     every = rules.load()
@@ -28,4 +28,4 @@ def build():  # pragma: no cover - the pod's wiring, with real keys
                                                  datetime.now(timezone.utc)))
 
 
-app = build() if os.environ.get("OBSERVABILITY_BIGQUERY_KEY") else None
+app = build() if os.environ.get("OBSERVABILITY_GOOGLE_CREDENTIAL_FILE") else None

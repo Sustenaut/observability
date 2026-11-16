@@ -25,7 +25,7 @@ permissions:
 
 jobs:
   deploy:
-    uses: Sustenaut/pubdeploy/.github/workflows/k8s-deploy.yml@3aff3f235b8fbc02f4d137d10ea09c5a98d8830b # v0.4.0
+    uses: Sustenaut/pubdeploy/.github/workflows/k8s-deploy.yml@9d13c3fca915b386742565895d67d9a831492cfa # v0.4.1
     with:
       image: ghcr.io/sustenaut/observability
       deploys: k8s observability DEPLOY_OBSERVABILITY

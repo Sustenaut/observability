@@ -4,11 +4,12 @@ runs each query on fixture rows (local_bigquery.py)."""
 
 from __future__ import annotations
 
-import base64
 import json
 from datetime import datetime, timezone
+from pathlib import Path
 
 import pytest
+import yaml
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 from integrations.calls import Response
@@ -18,6 +19,8 @@ from observability import bigquery, cli, store
 from observability.evaluate import Signal
 
 from .local_bigquery import DAY, Warehouse
+
+ROOT = Path(__file__).resolve().parents[2]
 
 scenarios("../features/evaluate.feature")
 
@@ -143,7 +146,7 @@ def google(warehouse: Warehouse) -> Google:
 
 @pytest.fixture
 def run(monkeypatch) -> dict:
-    for name in ("OBSERVABILITY_DATASETS", "OBSERVABILITY_SENDERS", "OBSERVABILITY_BIGQUERY_KEY"):
+    for name in ("OBSERVABILITY_DATASETS", "OBSERVABILITY_SENDERS", "OBSERVABILITY_GOOGLE_CREDENTIAL_FILE"):
         monkeypatch.delenv(name, raising=False)
     return {}
 
@@ -166,15 +169,32 @@ def made_key() -> dict:
             "private_key": pem, "token_uri": TOKEN_URI}
 
 
-@given("a service account key in OBSERVABILITY_BIGQUERY_KEY")
-def a_key(monkeypatch, run: dict) -> None:
+@given("a service account key in the credential file")
+def a_key(monkeypatch, tmp_path, run: dict) -> None:
     run["key"] = made_key()
-    monkeypatch.setenv("OBSERVABILITY_BIGQUERY_KEY", json.dumps(run["key"]))
+    run["file"] = tmp_path / "credential.json"
+    run["file"].write_text(json.dumps(run["key"]), encoding="utf-8")
+    monkeypatch.setenv("OBSERVABILITY_GOOGLE_CREDENTIAL_FILE", str(run["file"]))
 
 
-@given("the service account key is in base64")
-def key_base64(monkeypatch, run: dict) -> None:
-    monkeypatch.setenv("OBSERVABILITY_BIGQUERY_KEY", base64.b64encode(json.dumps(run["key"]).encode()).decode())
+@given(parsers.parse("the credential file holds {text}"))
+def credential_holds(run: dict, text: str) -> None:
+    if text == "google-credential.yaml's external_account credential":
+        configmap = yaml.safe_load((ROOT / "k8s" / "google-credential.yaml").read_text(encoding="utf-8"))
+        text = configmap["data"]["credential.json"]
+    run["file"].write_text(text, encoding="utf-8")
+
+
+@then("the evaluator's warehouse trades the pod's token for observability-reader's, in project sustenaut")
+def federated(run: dict) -> None:
+    from integrations.calls import Caller
+    from integrations.ingest.google_token import FederatedToken
+
+    from observability.bigquery import Warehouse
+    from observability.cli import credential
+
+    warehouse = Warehouse(Caller("Sustenaut/observability", "evaluator"), credential(str(run["file"])))
+    assert isinstance(warehouse.token, FederatedToken) and warehouse.project == "sustenaut"
 
 
 @given(parsers.parse('the open signal "{rule}" for "{subject}" since {clock}'))
@@ -360,3 +380,29 @@ def written(run: dict, google: Google, count: int, folder: str) -> None:
 def nothing_written(google: Google, run: dict) -> None:
     assert not [n for n in google.storage.files if "103000" in n], google.storage.files
     assert "wrote" not in run["err"]
+
+
+def test_the_projected_token_the_credential_and_the_provider_name_one_audience():
+    """A mismatch fails only at run time, as Google's STS refusing the token: the
+    evaluator's and the page's projected tokens, and the credential's audience, are
+    the services pool's provider (Sustenaut/shared-infra's services_google output)."""
+    provider = ("//iam.googleapis.com/projects/948171295184/locations/global/workloadIdentityPools/services/"
+                "providers/sustenaut-k3s")
+    configmap = yaml.safe_load((ROOT / "k8s" / "google-credential.yaml").read_text(encoding="utf-8"))
+    credential = json.loads(configmap["data"]["credential.json"])
+    assert credential["audience"] == provider
+    for name, path in (("evaluator", ["spec", "jobTemplate", "spec", "template", "spec"]),
+                       ("page", ["spec", "template", "spec"])):
+        spec = next(d for d in yaml.safe_load_all((ROOT / "k8s" / f"{name}.yaml").read_text(encoding="utf-8"))
+                    if d and d["kind"] in ("CronJob", "Deployment"))
+        for key in path:
+            spec = spec[key]
+        assert spec["serviceAccountName"] == name and spec["automountServiceAccountToken"] is False
+        (volume,) = [v for v in spec["volumes"] if v["name"] == "google-token"]
+        (source,) = volume["projected"]["sources"]
+        assert source["serviceAccountToken"]["audience"] == provider
+        mounts = {m["name"]: m["mountPath"] for m in spec["containers"][0]["volumeMounts"]}
+        assert f"{mounts['google-token']}/{source['serviceAccountToken']['path']}" == \
+            credential["credential_source"]["file"]
+        env = {e["name"]: e.get("value") for e in spec["containers"][0]["env"]}
+        assert env["OBSERVABILITY_GOOGLE_CREDENTIAL_FILE"] == f"{mounts['google-credential']}/credential.json"

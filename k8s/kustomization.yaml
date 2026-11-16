@@ -7,6 +7,7 @@ kind: Kustomization
 namespace: observability
 resources:
   - service-accounts.yaml
+  - google-credential.yaml
   - evaluator.yaml
   - page.yaml
   - oauth2-proxy.yaml

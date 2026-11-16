@@ -1,7 +1,7 @@
 """BigQuery queries, through the integrations library's Caller, so each call has
 its class's timeout and retries and is declared as google.bigquery's query.
 
-    warehouse = Warehouse(caller, key)       # key: a service account's key, as a dict
+    warehouse = Warehouse(caller, credential)  # an external_account credential or a key, as a dict
     rows = warehouse.query("SELECT 1 AS one")  # [{"one": 1}]
 """
 
@@ -13,7 +13,7 @@ from typing import Any, Callable
 from urllib.parse import quote, urlencode
 
 from integrations.calls import Caller, Refused, Request
-from integrations.ingest.google_token import GoogleToken
+from integrations.ingest.google_token import google_token, project_of
 
 PLUGIN = "google.bigquery"
 API = "https://bigquery.googleapis.com/bigquery/v2"
@@ -47,12 +47,12 @@ def rows(answer: dict) -> list[dict[str, Any]]:
 
 
 class Warehouse:
-    """`token` gives an access token; by default, one traded for `key`'s."""
+    """`token` gives an access token; by default, the credential's (integrations' google_token)."""
 
-    def __init__(self, caller: Caller, key: dict, *, token: Callable[[], str] | None = None):
-        self.caller, self.project = caller, key["project_id"]
+    def __init__(self, caller: Caller, credential: dict, *, token: Callable[[], str] | None = None):
+        self.caller, self.project = caller, project_of(credential)
         self.location = "EU"
-        self.token = token or GoogleToken(caller, key)
+        self.token = token or google_token(caller, credential)
 
     def _call(self, method: str, url: str, body: dict | None = None) -> dict:
         request = Request(method, url, {"Authorization": f"Bearer {self.token()}",

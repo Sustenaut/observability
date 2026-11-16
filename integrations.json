@@ -40,6 +40,13 @@
       "mode": "required"
     },
     {
+      "plugin": "google.cloud",
+      "paths": [
+        "k8s/google-credential.yaml"
+      ],
+      "mode": "required"
+    },
+    {
       "plugin": "letsencrypt.certs",
       "paths": [
         "k8s/ingress.yaml"
