@@ -55,7 +55,7 @@ class Warehouse:
         self.made: set[str] = set()
         # The convergence engine's table is always there, as Terraform makes it, if empty.
         self.need_states([])
-        # And the platform's pubkit checks, likewise.
+        # And the platform's pubrules checks, likewise.
         self.pubkit_checks([])
 
     def load(self, dataset: str, fixture: str) -> None:

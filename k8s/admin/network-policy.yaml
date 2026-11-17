@@ -1,4 +1,4 @@
-# Applied by the deploy walk over the admin channel (pubkit.json's k8s.manifests need):
+# Applied by the deploy walk over the admin channel (pubrules.json's k8s.manifests need):
 # the deploy identity may not manage network policies. k3s enforces them (kube-router).
 # The page holds the reader's key and is behind the sign-in, so only the proxy's pods
 # may reach it.

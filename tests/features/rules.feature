@@ -126,18 +126,18 @@ Feature: Rules over the facts
   Scenario: A check failing in the latest night opens a signal, and the next night's pass ends it
     Given the nightly checks found
       | night | repository           | check | status  | pinned | latest | fix                                               | run_url |
-      | 08:00 | Sustenaut/pubhost    | pin   | fail    | 0.35.1 | 0.37.0 | `git latest && ./pubkit bump`, then open its PR   |         |
-      | 09:00 | Sustenaut/pubhost    | pin   | fail    | 0.35.1 | 0.37.0 | `git latest && ./pubkit bump`, then open its PR   |         |
-      | 08:00 | Sustenaut/pubtheme   | sync  | fail    | 0.37.0 | 0.37.0 | `git latest && ./pubkit sync`, then open its PR   | https://github.com/run/7 |
+      | 08:00 | Sustenaut/pubhost    | pin   | fail    | 0.35.1 | 0.37.0 | `git latest && ./pubrules bump`, then open its PR   |         |
+      | 09:00 | Sustenaut/pubhost    | pin   | fail    | 0.35.1 | 0.37.0 | `git latest && ./pubrules bump`, then open its PR   |         |
+      | 08:00 | Sustenaut/pubtheme   | sync  | fail    | 0.37.0 | 0.37.0 | `git latest && ./pubrules sync`, then open its PR   | https://github.com/run/7 |
       | 09:00 | Sustenaut/pubtheme   | sync  | pass    | 0.37.0 | 0.37.0 |                                                   | https://github.com/run/8 |
       | 09:00 | Sustenaut/pubtheme   | pin   | pass    | 0.37.0 | 0.37.0 |                                                   |         |
       | 09:00 | Sustenaut/docs       | pin   | unknown |        | 0.37.0 |                                                   |         |
-      | 09:00 | Sustenaut/ui         | sync  | fail    | 0.37.0 | 0.37.0 | `git latest && ./pubkit sync`, then open its PR   | https://github.com/run/9 |
+      | 09:00 | Sustenaut/ui         | sync  | fail    | 0.37.0 | 0.37.0 | `git latest && ./pubrules sync`, then open its PR   | https://github.com/run/9 |
     When the rule "pubkit_drift" runs at 10:30
     Then it finds
       | subject                | check | status | pinned | latest | fix                                             | run_url                  |
-      | Sustenaut/pubhost/pin  | pin   | fail   | 0.35.1 | 0.37.0 | `git latest && ./pubkit bump`, then open its PR |                          |
-      | Sustenaut/ui/sync      | sync  | fail   | 0.37.0 | 0.37.0 | `git latest && ./pubkit sync`, then open its PR | https://github.com/run/9 |
+      | Sustenaut/pubhost/pin  | pin   | fail   | 0.35.1 | 0.37.0 | `git latest && ./pubrules bump`, then open its PR |                          |
+      | Sustenaut/ui/sync      | sync  | fail   | 0.37.0 | 0.37.0 | `git latest && ./pubrules sync`, then open its PR | https://github.com/run/9 |
 
   Scenario: No night, no drift
     Given the nightly checks found

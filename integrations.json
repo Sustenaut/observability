@@ -57,7 +57,7 @@
       "plugin": "slack.post",
       "paths": [
         ".github/workflows/uptime.yml",
-        "pubkit.json",
+        "pubrules.json",
         "src/observability/uptime.py"
       ],
       "mode": "required"
@@ -82,7 +82,7 @@
     {
       "plugin": "tailscale.tailnet",
       "paths": [
-        "pubkit.json"
+        "pubrules.json"
       ],
       "mode": "required"
     }

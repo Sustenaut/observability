@@ -3,8 +3,8 @@
 -- reads: platform.pubkit_checks
 --
 -- One row per repository per check per night, as release-controlplane's nightly found
--- it: every repository on the release board, its pin (the pubkit it pins against pubkit's
--- latest release) and its sync (main's latest pubkit sync --check), passes as well as
+-- it: every repository on the release board, its pin (the pubrules it pins against pubrules's
+-- latest release) and its sync (main's latest pubrules sync --check), passes as well as
 -- failures. The nightly writes what it found, never that something is wrong; the
 -- integrations ingest pod loads its buffer (storage's pubkit-checks tenant) into this
 -- table, which is only ever appended to. A check is named by its repository and check,

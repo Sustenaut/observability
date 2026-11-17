@@ -1,10 +1,10 @@
 # Builds the evaluator's image once CI passes on a merge to main, and sends k8s/ to
-# the shared k3s server over SSH and the tailnet, with pubkit's k8s-deploy.yml
-# (pubkit's README, "Deploying a service to k3s"), where the deploy key can only run
+# the shared k3s server over SSH and the tailnet, with pubrules's k8s-deploy.yml
+# (pubrules's README, "Deploying a service to k3s"), where the deploy key can only run
 # sustenaut-deploy.
 #
 # What a deployment reads is in repository variables, so nothing here names a
-# consumer: OBSERVABILITY_DATASETS and OBSERVABILITY_SENDERS, which pubkit.json
+# consumer: OBSERVABILITY_DATASETS and OBSERVABILITY_SENDERS, which pubrules.json
 # declares. Their values are kept in the owner's state repository: a change there
 # sets them with `pubfleet variables --apply` and runs this workflow. It deploys only once
 # DEPLOY_OBSERVABILITY is "on", which the deploy walk sets once every need before
@@ -25,7 +25,7 @@ permissions:
 
 jobs:
   deploy:
-    uses: Sustenaut/pubdeploy/.github/workflows/k8s-deploy.yml@9d13c3fca915b386742565895d67d9a831492cfa # v0.4.1
+    uses: Sustenaut/pubdeploy/.github/workflows/k8s-deploy.yml@fc34f05c790732a1ea831d896e557e9f816cba50 # v0.5.0
     with:
       image: ghcr.io/sustenaut/observability
       deploys: k8s observability DEPLOY_OBSERVABILITY
