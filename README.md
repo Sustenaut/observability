@@ -46,8 +46,8 @@ to the query it came from.
   not a project's call log: a fact whose `reads` is `dataset.table` reads that
   table once, whatever the call log datasets.
 - **`pubkit_checks`** is how each repository on the release board stood against
-  pubkit, night by night: release-controlplane's nightly records its `pin` (the pubkit
-  it pins against the latest release) and `sync` (main's `pubkit sync --check`), passes
+  pubrules, night by night: release-controlplane's nightly records its `pin` (the pubrules
+  it pins against the latest release) and `sync` (main's `pubrules sync --check`), passes
   as well as failures, with the versions, main's commit and run, and the fix, in the
   one append-only table `platform.pubkit_checks` (loaded from storage's
   `pubkit-checks` buffer).
@@ -100,7 +100,7 @@ UPTIME_TARGETS='[{"name": "example", "url": "https://example.test/healthz"}]' \
 ```
 
 **Setting it up.** The bot's token is a secret: Bitwarden's Sustenaut project keeps
-it as `slack-bot-token`, and `pubkit.json`'s `secrets` list sends it here as
+it as `slack-bot-token`, and `pubrules.json`'s `secrets` list sends it here as
 `SUSTENAUT_SLACK_BOT_TOKEN`:
 
 ```sh
@@ -109,7 +109,7 @@ it as `slack-bot-token`, and `pubkit.json`'s `secrets` list sends it here as
 ```
 
 The channel and the targets aren't secrets: they are the repository variables
-`UPTIME_SLACK_CHANNEL` and `UPTIME_TARGETS`, which `pubkit.json`'s `variables` block
+`UPTIME_SLACK_CHANNEL` and `UPTIME_TARGETS`, which `pubrules.json`'s `variables` block
 declares and the owner's state repository keeps (`pubfleet variables --apply` sets
 them). To change the targets, change them there. The Bitwarden entries
 `uptime-slack-channel` and `uptime-targets`, which used to send them, can be deleted
@@ -164,7 +164,7 @@ dataset's rows, from its lookback on), and may use `{{now}}`,
 | `slow_pages` | warning | a warm sender answering slower than 5 seconds in the last 6 minutes |
 | `cold_start_share` | info | the share of a sender's answering windows in the last day that began cold |
 | `need_drift` | warning | a deploy service's need the latest walk found drifted, or missing or blocked after a ready walk in the last 30 days; it ends when a walk finds it ready (an `unknown` need, one the walk couldn't check, is not drift) |
-| `pubkit_drift` | warning | a repository on the release board whose latest nightly check (`platform.pubkit_checks`) failed: it pins an older pubkit than the latest release, or main fails `pubkit sync --check`; the post gives the fix, and the next night's pass ends it. The nightly records passes too, so the table is the night-by-night record for audits |
+| `pubkit_drift` | warning | a repository on the release board whose latest nightly check (`platform.pubkit_checks`) failed: it pins an older pubrules than the latest release, or main fails `pubrules sync --check`; the post gives the fix, and the next night's pass ends it. The nightly records passes too, so the table is the night-by-night record for audits |
 
 **Senders** are configuration: `OBSERVABILITY_SENDERS` maps each project to
 its sender prefixes, each `always` (silence is a fault) or `on-demand` (it
@@ -279,11 +279,11 @@ if it overruns. It is the service account `evaluator`, which is the principal st
 for storage and no Kubernetes API token.
 
 `.github/workflows/deploy.yml` builds the image (`Dockerfile`, from the hash-locked
-`evaluator-requirements.lock`) on each merge to main and applies `k8s/` with pubkit's
+`evaluator-requirements.lock`) on each merge to main and applies `k8s/` with pubrules's
 `k8s-deploy.yml`, once `DEPLOY_OBSERVABILITY` is `on`. Its settings are the
 repository variables `OBSERVABILITY_DATASETS` (the call log datasets, comma-separated)
 and `OBSERVABILITY_SENDERS` (YAML or JSON, above), which become the ConfigMap
-`evaluator-settings`. They aren't secrets, so they aren't in Bitwarden: `pubkit.json`'s
+`evaluator-settings`. They aren't secrets, so they aren't in Bitwarden: `pubrules.json`'s
 `variables` block names them, and the owner's state repository keeps their values and
 sets them (`pubfleet variables --apply`, which then runs the deploy). By hand:
 
@@ -292,13 +292,13 @@ gh variable set OBSERVABILITY_DATASETS -R Sustenaut/observability --body 'calls_
 gh variable set OBSERVABILITY_SENDERS -R Sustenaut/observability --body '{"example": {"app": "always"}}'
 ```
 
-pubkit.json's `deploy` block lists everything else it needs, and pubkit's deploy walk
+pubrules.json's `deploy` block lists everything else it needs, and pubrules's deploy walk
 checks each and makes what it can. To take it live, or bring it back in step, from a
 checkout of this repository with Sustenaut/auth and Sustenaut/shared-infra checked out
 beside it, on a machine on the admin tailnet, signed in to `gh` and `gcloud`:
 
 ```sh
-./with-secrets ./pubdeploy walk --fulfil --server sustenaut --zones ../shared-infra/pubkit.json
+./with-secrets ./pubdeploy walk --fulfil --server sustenaut --zones ../shared-infra/pubrules.json
 ```
 
 It checks every need, prints the plan, and waits for a typed `yes`; then it makes each

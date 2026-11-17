@@ -1,6 +1,6 @@
 # The functional suite's direct dependencies. Exact pins only; the resolved
-# set with hashes lives in requirements.lock. Regenerate it with `pubkit lock`.
--r requirements-pubkit.txt
+# set with hashes lives in requirements.lock. Regenerate it with `pubrules lock`.
+-r requirements-pubrules.txt
 # `make functional` measures the suite, the `observability` processes it starts included.
 coverage==7.16.2
 # The facts' SQL runs on fixture rows in DuckDB, put in its dialect by sqlglot,
@@ -19,6 +19,6 @@ integrations[github-app,storage-sink] @ https://github.com/Sustenaut/integration
 fastapi==0.142.2
 httpx==0.28.1
 # pubsec offers the deploy block's need types (gcp.service-account-key, bitwarden.*,
-# k8s.secret...), so `pubkit sync --check` needs it beside pubkit: the same wheel
-# as pubkit.json's deploy.providers.
-pubsec @ https://github.com/Sustenaut/pubsec/releases/download/v0.2.3/pubsec-0.2.3-py3-none-any.whl
+# k8s.secret...), so `pubrules sync --check` needs it beside pubrules: the same wheel
+# as pubrules.json's deploy.providers.
+pubsec @ https://github.com/Sustenaut/pubsec/releases/download/v0.3.0/pubsec-0.3.0-py3-none-any.whl

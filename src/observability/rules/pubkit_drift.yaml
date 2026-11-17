@@ -1,7 +1,7 @@
 id: pubkit_drift
 version: 1
 severity: warning
-summary: A repository on the release board that the latest nightly check found behind pubkit's latest release, or whose main fails pubkit sync --check.
+summary: A repository on the release board that the latest nightly check found behind pubrules's latest release, or whose main fails pubrules sync --check.
 # The nightly checks every repository each night and records passes too, so the newest
 # row of a repository's check says how it stands: a fail opens a signal, and the next
 # night's pass ends it. Three days, so a night the nightly does not run leaves an open
