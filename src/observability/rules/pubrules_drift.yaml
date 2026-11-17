@@ -1,4 +1,4 @@
-id: pubkit_drift
+id: pubrules_drift
 version: 1
 severity: warning
 summary: A repository on the release board that the latest nightly check found behind pubrules's latest release, or whose main fails pubrules sync --check.
@@ -14,7 +14,7 @@ query: |
     SELECT
       *,
       ROW_NUMBER() OVER (PARTITION BY repository, `check` ORDER BY observed_at DESC) AS newest
-    FROM {{fact:pubkit_checks}}
+    FROM {{fact:pubrules_checks}}
   )
   SELECT
     CONCAT(repository, '/', `check`) AS subject,

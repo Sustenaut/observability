@@ -95,7 +95,7 @@ Feature: Rules over the facts
       | plugin_errors        |
       | cold_start_share     |
       | need_drift           |
-      | pubkit_drift         |
+      | pubrules_drift         |
 
   Scenario: A need that left ready is drift until a walk finds it ready again
     Given the convergence engine's walks found
@@ -133,7 +133,7 @@ Feature: Rules over the facts
       | 09:00 | Sustenaut/pubtheme   | pin   | pass    | 0.37.0 | 0.37.0 |                                                   |         |
       | 09:00 | Sustenaut/docs       | pin   | unknown |        | 0.37.0 |                                                   |         |
       | 09:00 | Sustenaut/ui         | sync  | fail    | 0.37.0 | 0.37.0 | `git latest && ./pubrules sync`, then open its PR   | https://github.com/run/9 |
-    When the rule "pubkit_drift" runs at 10:30
+    When the rule "pubrules_drift" runs at 10:30
     Then it finds
       | subject                | check | status | pinned | latest | fix                                             | run_url                  |
       | Sustenaut/pubhost/pin  | pin   | fail   | 0.35.1 | 0.37.0 | `git latest && ./pubrules bump`, then open its PR |                          |
@@ -142,7 +142,7 @@ Feature: Rules over the facts
   Scenario: No night, no drift
     Given the nightly checks found
       | night | repository | check | status |
-    When the rule "pubkit_drift" runs at 10:30
+    When the rule "pubrules_drift" runs at 10:30
     Then it finds nothing
 
   Scenario: No walk, no drift
