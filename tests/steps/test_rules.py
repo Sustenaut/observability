@@ -40,7 +40,7 @@ def fresh(warehouse: Warehouse, ran: dict, dataset: str, fixture: str) -> None:
 @given("the nightly checks found")
 def checks_found(warehouse: Warehouse, datatable: list[list[str]]) -> None:
     columns, *rows = datatable
-    warehouse.pubkit_checks([dict(zip(columns, row)) for row in rows])
+    warehouse.pubrules_checks([dict(zip(columns, row)) for row in rows])
 
 
 @given("the convergence engine's walks found")
