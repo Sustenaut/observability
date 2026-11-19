@@ -8,24 +8,121 @@ Feature: Rules over the facts
     And the dataset "calls_other" holds "other-project"
     And the senders are "example: {app: always, web: always, plan: on-demand, missing: always}"
 
-  Scenario: An always-on sender silent for more than 6 minutes, or never seen; on-demand ones are left alone
+  Scenario: An always-on sender silent for more than 10 minutes, or never seen; on-demand ones are left alone
     When the rule "sender_silent" runs at 10:30
     Then the result is:
       | subject         | last_seen |
       | example/missing |           |
       | example/web     | 10:10     |
 
-  Scenario: A project the ingest pod has reported nothing for
+  Scenario: A sender quiet for 8 minutes is not silent yet
+    When the rule "sender_silent" runs at 10:18
+    Then the result is:
+      | subject         | last_seen |
+      | example/missing |           |
+
+  Scenario: Every project the ingest pod has reported nothing for, as one signal
     When the rule "ingest_silent" runs at 10:30
     Then the result is:
-      | subject | last_seen |
-      | other   |           |
+      | subject | projects | oldest_last_seen |
+      | ingest  | other    |                  |
 
-  Scenario: Storage did not answer the ingest pod's latest cycle
-    When the rule "storage_unreachable" runs at 10:30
+  Scenario Outline: An ingest pod that reports slowly is not silent before 15 minutes
+    Given the ingest pod's cycles for "calls_slow" were
+      | at       | storage_ok |
+      | 10:00:00 | true       |
+      | <last>   | true       |
+    And the senders are "{}"
+    When the rule "ingest_silent" runs at 10:30 over "calls_slow"
+    Then the result is empty
+
+    Examples:
+      | last     |
+      | 10:23:00 |
+      | 10:17:00 |
+
+  Scenario: An ingest pod quiet for 16 minutes is silent, for every project it has gone quiet for
+    Given the ingest pod's cycles for "calls_slow" were
+      | at       | storage_ok |
+      | 10:14:00 | true       |
+    And the ingest pod's cycles for "calls_quiet" were
+      | at       | storage_ok |
+      | 10:12:00 | true       |
+    And the ingest pod's cycles for "calls_busy" were
+      | at       | storage_ok |
+      | 10:29:00 | true       |
+    And the senders are "{}"
+    When the rule "ingest_silent" runs at 10:30 over "calls_slow" and "calls_quiet" and "calls_busy"
+    Then the result is:
+      | subject | projects   | oldest_last_seen |
+      | ingest  | quiet,slow | 10:12            |
+
+  Scenario: A threshold set in OBSERVABILITY_THRESHOLDS changes what a rule finds
+    Given the ingest pod's cycles for "calls_slow" were
+      | at       | storage_ok |
+      | 10:14:00 | true       |
+    And the thresholds are "{version: 1, rules: {ingest_silent: {silent_minutes: 20}}}"
+    And the senders are "{}"
+    When the rule "ingest_silent" runs at 10:30 over "calls_slow"
+    Then the result is empty
+
+  Scenario: Storage failing one project's latest cycle is storage_errors' alone
+    When the rule "storage_errors" runs at 10:30
     Then the result is:
       | subject | problems               |
       | example | storage did not answer |
+    When the rule "storage_unreachable" runs at 10:30
+    Then the result is empty
+
+  Scenario: Storage failing 3 of the latest 5 cycles, across projects, is storage_unreachable
+    Given the ingest pod's cycles for "calls_a" were
+      | at       | storage_ok | problems               |
+      | 10:12:10 | false      | storage did not answer |
+      | 10:20:10 | false      | storage did not answer |
+      | 10:22:10 | true       |                        |
+      | 10:24:10 | false      | storage did not answer |
+      | 10:26:10 | true       |                        |
+      | 10:28:10 | true       |                        |
+    And the ingest pod's cycles for "calls_b" were
+      | at       | storage_ok | problems               |
+      | 10:24:10 | false      | storage answered 503   |
+      | 10:28:10 | false      | storage answered 503   |
+    And the senders are "{}"
+    When the rule "storage_unreachable" runs at 10:30 over "calls_a" and "calls_b"
+    Then the result is:
+      | subject | failed | cycles | projects | latest_failure | problems             |
+      | storage | 3      | 5      | a,b      | 10:28          | storage answered 503 |
+
+  Scenario: Storage failing 2 of the latest 5 cycles is not storage_unreachable, whatever failed before them
+    Given the ingest pod's cycles for "calls_a" were
+      | at       | storage_ok |
+      | 10:12:10 | false      |
+      | 10:14:10 | false      |
+      | 10:20:10 | true       |
+      | 10:22:10 | true       |
+      | 10:24:10 | false      |
+      | 10:26:10 | true       |
+      | 10:28:10 | false      |
+    And the senders are "{}"
+    When the rule "storage_unreachable" runs at 10:30 over "calls_a"
+    Then the result is empty
+    When the rule "storage_errors" runs at 10:30 over "calls_a"
+    Then the result is:
+      | subject | bucket |
+      | a       | 10:28  |
+
+  Scenario: OBSERVABILITY_THRESHOLDS can make storage_unreachable stricter
+    Given the ingest pod's cycles for "calls_a" were
+      | at       | storage_ok |
+      | 10:24:10 | false      |
+      | 10:26:10 | true       |
+      | 10:28:10 | false      |
+    And the thresholds are "{version: 1, rules: {storage_unreachable: {failed_cycles: 2, window_cycles: 3}}}"
+    And the senders are "{}"
+    When the rule "storage_unreachable" runs at 10:30 over "calls_a"
+    Then the result is:
+      | subject | failed | cycles | projects |
+      | storage | 2      | 3      | a        |
 
   Scenario: A file waiting more than 10 minutes, by the latest cycle
     When the rule "inbox_stale" runs at 10:30
@@ -86,6 +183,7 @@ Feature: Rules over the facts
       | sender_silent        |
       | ingest_silent        |
       | storage_unreachable  |
+      | storage_errors       |
       | inbox_stale          |
       | rejected_files       |
       | load_jobs_near_limit |
@@ -172,12 +270,30 @@ Feature: Rules over the facts
       | r     | {id: r, version: 1, severity: info, summary: s, lookback_minutes: 5, query: 'SELECT {{later}}'}        | r.yaml: there is no {{later}}                             |
       | r     | {id: r, version: 1, severity: info, summary: s, lookback_minutes: 5, query: q, trend: {label: l}}      | r.yaml: a trend has label, query, threshold               |
       | r     | {id: r, version: 1, severity: info, summary: s, lookback_minutes: 5, query: q, trend: [1]}             | r.yaml: a trend has label, query, threshold               |
-      | r     | {id: r, version: 1, severity: info, summary: s, lookback_minutes: 5, query: q, trend: {label: l, threshold: high, query: q}} | r.yaml: a trend's threshold is a number |
-      | r     | {id: r, version: 1, severity: info, summary: s, lookback_minutes: 5, query: q, trend: {label: l, threshold: true, query: q}} | r.yaml: a trend's threshold is a number |
+      | r     | {id: r, version: 1, severity: info, summary: s, lookback_minutes: 5, query: q, trend: {label: l, threshold: high, query: q}} | r.yaml: a trend's threshold high is not among its params |
+      | r     | {id: r, version: 1, severity: info, summary: s, lookback_minutes: 5, query: q, trend: {label: l, threshold: true, query: q}} | r.yaml: a trend's threshold is a number, or one of its params |
       | r     | {id: r, version: 1, severity: info, summary: s, lookback_minutes: 5, query: q, trend: {label: l, threshold: 1, query: 'SELECT {{later}}'}} | r.yaml: there is no {{later}} |
+      | r     | {id: r, version: 1, severity: info, summary: s, lookback_minutes: 5, query: 'SELECT {{fact:Calls}}'}    | r.yaml: there is no {{fact:Calls}}                        |
+      | r     | {id: r, version: 1, severity: info, summary: s, lookback_minutes: 5, query: 'SELECT {{param:limit}}'}   | r.yaml: {{param:limit}} is not among its params           |
+      | r     | {id: r, version: 1, severity: info, summary: s, lookback_minutes: 5, query: 'SELECT {{param:Limit}}', params: {limit: 1}} | r.yaml: there is no {{param:Limit}} |
+      | r     | {id: r, version: 1, severity: info, summary: s, lookback_minutes: 5, query: q, params: {limit: 1}}      | r.yaml: no query uses the param limit                     |
+      | r     | {id: r, version: 1, severity: info, summary: s, lookback_minutes: 5, query: q, params: [1]}             | r.yaml: params maps each name to a number                 |
+      | r     | {id: r, version: 1, severity: info, summary: s, lookback_minutes: 5, query: q, params: {Limit: 1}}      | r.yaml: a param's name is lowercase letters and underscores, not Limit |
+      | r     | {id: r, version: 1, severity: info, summary: s, lookback_minutes: 5, query: q, params: {limit: ten}}    | r.yaml: the param limit is a number, not ten              |
+      | r     | {id: r, version: 1, severity: info, summary: s, lookback_minutes: 5, query: q, params: {limit: true}}   | r.yaml: the param limit is a number, not True             |
+
+  Scenario: A rule's params fill its query, and a trend's threshold may be one of them
+    When a rule file "r" reads "{id: r, version: 1, severity: info, summary: s, lookback_minutes: 5, query: 'SELECT {{param:limit}} AS a, {{param:share}} AS b', params: {limit: 10, share: 0.25}, trend: {label: l, threshold: limit, query: 'SELECT {{param:share}} AS value'}}"
+    Then it is not refused
+    When the rule file "r" is rendered with the thresholds "{limit: 12}"
+    Then the result is:
+      """
+      {"query": "SELECT 12 AS a, 0.25 AS b", "trend": "SELECT 0.25 AS value", "threshold": 12.0}
+      """
 
   Scenario: The rules are listed with their versions and severities
     When the rules are listed
     Then it succeeds
-    And it prints "sender_silent	version 1	critical"
+    And it prints "sender_silent	version 2	critical"
+    And it prints "storage_errors	version 1	warning"
     And it prints "cold_start_share	version 1	info"

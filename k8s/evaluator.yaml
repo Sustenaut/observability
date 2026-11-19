@@ -1,7 +1,8 @@
 # The evaluator, every two minutes: every rule against BigQuery, its signals written to
 # storage's signals tenant. One run at a time, and one that overruns its two minutes is
 # stopped, so the next starts from what is loaded. Its settings are the ConfigMap
-# evaluator-settings, which deploy.yml renders from the repository's variables; its
+# evaluator-settings, which deploy.yml renders from the repository's variables
+# (OBSERVABILITY_DATASETS, OBSERVABILITY_SENDERS, OBSERVABILITY_THRESHOLDS); its
 # BigQuery credential is the ConfigMap google-credential: no key (google-credential.yaml).
 apiVersion: batch/v1
 kind: CronJob

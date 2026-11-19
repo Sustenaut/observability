@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from observability import __version__, config, facts, senders
+from observability import __version__, config, facts, senders, thresholds
 
 # The variable that names Google's credential file (its path, never a value).
 GOOGLE_FILE = "OBSERVABILITY_GOOGLE_CREDENTIAL_FILE"
@@ -104,6 +104,7 @@ def evaluate(when: str | None, transport: Any, storage_token: Any = None) -> int
     if not datasets:
         raise ValueError(f"no dataset: set {config.VARIABLE}")
     expected = senders.parse(os.environ.get(senders.VARIABLE, ""), datasets)
+    every = thresholds.effective(os.environ.get(thresholds.VARIABLE, ""), rules.load())
     caller = Caller("Sustenaut/observability", "evaluator", transport=transport)
     warehouse = Warehouse(caller, credential(os.environ.get(GOOGLE_FILE, "")))
     url = os.environ.get(STORAGE, "")
@@ -117,7 +118,7 @@ def evaluate(when: str | None, transport: Any, storage_token: Any = None) -> int
     except IntegrationError as error:
         # Without them every breach would start again, so nothing is evaluated.
         raise ValueError(f"could not read the open signals: {error}") from None
-    outcome = evaluator.evaluate(list(rules.load().values()), warehouse.query, datasets, senders.always(expected),
+    outcome = evaluator.evaluate(list(every.values()), warehouse.query, datasets, senders.always(expected),
                                  opened, now)
     for signal in outcome.signals:
         print(json.dumps(signal.record(), sort_keys=True))

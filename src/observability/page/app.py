@@ -15,6 +15,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 
 from observability import links
 from observability.page.queries import WINDOWS, Sender, SignalView, Trends
+from observability.rules import Rule
 
 BASE = "/trends/integrations"
 STYLE = ("body{font:15px/1.5 system-ui;margin:2rem auto;max-width:72rem;padding:0 1rem;color-scheme:light dark}"
@@ -140,7 +141,8 @@ def _chart(view: SignalView) -> str:
         return f"<p>No {escape(trend.label.lower())} in this window.</p>"
     width, height, pad = 720, 220, 36
     start, span = view.since.timestamp(), max(1.0, (view.until - view.since).total_seconds())
-    top = max([trend.threshold, *(v for _, v in points)]) * 1.1 or 1.0
+    threshold = view.rule.threshold
+    top = max([threshold, *(v for _, v in points)]) * 1.1 or 1.0
 
     def x(moment: datetime) -> float:
         return pad + (width - 2 * pad) * (_utc(moment).timestamp() - start) / span
@@ -151,14 +153,14 @@ def _chart(view: SignalView) -> str:
     began, ended = x(view.signal["started_at"]), x(view.signal.get("ended_at") or view.until)
     line = " ".join(f"{x(at):.1f},{y(v):.1f}" for at, v in points)
     dots = "".join(f'<circle cx="{x(at):.1f}" cy="{y(v):.1f}" r="2.5" fill="currentColor"/>' for at, v in points)
-    limit = y(trend.threshold)
+    limit = y(threshold)
     return (f'<svg viewBox="0 0 {width} {height}" role="img" aria-label="{escape(trend.label)}">'
             f'<rect x="{began:.1f}" y="{pad}" width="{max(1.0, ended - began):.1f}" height="{height - 2 * pad}" '
             f'fill="#d33" fill-opacity=".12"/>'
             f'<line x1="{pad}" x2="{width - pad}" y1="{limit:.1f}" y2="{limit:.1f}" stroke="#d33" '
             f'stroke-dasharray="4 4"/>'
             f'<text x="{width - pad}" y="{limit - 4:.1f}" text-anchor="end" font-size="11" fill="#d33">'
-            f'threshold {trend.threshold:g}</text>'
+            f'threshold {threshold:g}</text>'
             f'<polyline points="{line}" fill="none" stroke="currentColor" stroke-width="1.5"/>{dots}'
             f'<text x="{pad}" y="{height - 10}" font-size="11" fill="currentColor">{_clock(view.since)}</text>'
             f'<text x="{width - pad}" y="{height - 10}" font-size="11" text-anchor="end" fill="currentColor">'
@@ -225,7 +227,15 @@ def render_signal(view: SignalView) -> HTMLResponse:
         f"shaded.</p>{_chart(view)}"
         + _context(view)
         + f"<h2>This rule's signals for {escape(s['subject'])}</h2>{_history(view)}"
-        f"<h2>The rule</h2><p>Looks back {rule.lookback_minutes} minutes.</p><pre>{escape(rule.query)}</pre>"))
+        f"<h2>The rule</h2><p>Looks back {rule.lookback_minutes} minutes.{_thresholds(rule)}</p>"
+        f"<pre>{escape(rule.query)}</pre>"))
+
+
+def _thresholds(rule: Rule) -> str:
+    """The thresholds the rule runs with now, as OBSERVABILITY_THRESHOLDS leaves them."""
+    if not rule.params:
+        return ""
+    return " Its thresholds now: " + ", ".join(f"{escape(k)} {v:g}" for k, v in sorted(rule.params.items())) + "."
 
 
 def create_app(load: Callable[[], Trends],

@@ -15,8 +15,9 @@ from observability.config import Dataset
 from observability.evaluate import OPEN_SIGNALS
 
 DAY_MINUTES = 24 * 60
-# A sender is silent after this long without a report: sender_silent's threshold.
-SILENT = timedelta(minutes=6)
+# A sender is silent after this long without a report: sender_silent's default
+# threshold, which the page is given as OBSERVABILITY_THRESHOLDS sets it.
+SILENT = timedelta(minutes=10)
 # The newest answering windows shown for each sender.
 WINDOWS = 30
 
@@ -86,13 +87,14 @@ def utc(moment: datetime) -> datetime:
     return moment if moment.tzinfo else moment.replace(tzinfo=timezone.utc)
 
 
-def senders(rows: list[dict[str, Any]], expected: dict[str, dict[str, str]], now: datetime) -> list[Sender]:
+def senders(rows: list[dict[str, Any]], expected: dict[str, dict[str, str]], now: datetime,
+            silent_after: timedelta = SILENT) -> list[Sender]:
     """Every sender seen in the last day, and every one configured though not seen."""
     found: dict[tuple[str, str, str], Sender] = {}
     for row in rows:
         kind = expected.get(row["project"], {}).get(row["sender_prefix"], "") if row["kind"] == "sender" else ""
         last_seen = utc(row["last_seen"])
-        silent = kind == "always" and now - last_seen > SILENT
+        silent = kind == "always" and now - last_seen > silent_after
         found[(row["project"], row["kind"], row["sender_prefix"])] = Sender(
             row["project"], row["kind"], row["sender_prefix"], kind, last_seen,
             int(row["windows_last_hour"]), silent)
@@ -104,14 +106,14 @@ def senders(rows: list[dict[str, Any]], expected: dict[str, dict[str, str]], now
 
 
 def trends(query: Callable[[str], list[dict[str, Any]]], datasets: list[Dataset],
-           expected: dict[str, dict[str, str]], now: datetime) -> Trends:
-    """Everything the page shows, at `now`."""
+           expected: dict[str, dict[str, str]], now: datetime, silent_after: timedelta = SILENT) -> Trends:
+    """Everything the page shows, at `now`; a sender is silent after `silent_after`."""
     def run(text: str) -> list[dict[str, Any]]:
         return query(rules.render(text, DAY_MINUTES, datasets, [], now))
 
     out = Trends(now)
     out.plugins = sorted(run(PLUGINS), key=lambda r: (r["project"], r["app"], r["plugin"], r["operation"]))
-    out.senders = senders(run(SENDERS), expected, now)
+    out.senders = senders(run(SENDERS), expected, now, silent_after)
     for row in sorted(run(PAGE_TIMES), key=lambda r: r["bucket"], reverse=True):
         windows = out.page_times.setdefault((row["project"], row["sender_prefix"]), [])
         if len(windows) < WINDOWS:
@@ -221,7 +223,8 @@ def signal(query: Callable[[str], list[dict[str, Any]]], datasets: list[Dataset]
         return since <= utc(r["bucket"]) <= until
 
     if rule.trend is not None:
-        out.trend = sorted((r for r in run(rule.trend.query) if r["subject"] == subject and within(r)),
+        out.trend = sorted((r for r in query(rule.trend_sql(datasets, minutes, until))
+                            if r["subject"] == subject and within(r)),
                            key=lambda r: r["bucket"])
     out.context = _context(evidence)
     project = evidence.get("project", subject.split("/")[0])

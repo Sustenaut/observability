@@ -6,7 +6,9 @@ same `started_at`. So a breach that lasts is written once, not every run:
 the evaluator is given the signals still open, starts a signal for each
 subject newly in breach, and ends each open one no longer in breach (or
 whose rule is gone). A rule whose query fails ends nothing: not knowing is
-not the same as all clear.
+not the same as all clear. A rule with params runs with its effective ones
+(observability.thresholds), and a signal it starts records them in its
+evidence, as `thresholds`.
 
 Open signals are the start records without an end, in observability.signals
 (OPEN_SIGNALS) and among those written but not loaded yet.
@@ -101,6 +103,9 @@ def evaluate(rules: list[Rule], query: Callable[[str], list[dict[str, Any]]], da
         breaches = {}
         for row in rows:
             evidence = {k: plain(v) for k, v in row.items() if k != "subject" and v is not None}
+            if rule.params:
+                # Which thresholds applied, so its history says so when they change.
+                evidence["thresholds"] = dict(rule.params)
             breaches[str(row["subject"])] = evidence
         for subject, evidence in sorted(breaches.items()):
             if (rule.id, subject) not in still_open:

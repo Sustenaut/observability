@@ -258,6 +258,18 @@ def starts(ctx, rule: str, subject: str, severity: str | None, key: str | None, 
         assert json.loads(signal["evidence"])[key] == value, signal["evidence"]
 
 
+@then(parsers.parse('the start of "{rule}" for "{subject}" records the thresholds "{text}"'))
+def records_thresholds(ctx, rule: str, subject: str, text: str) -> None:
+    evidence = json.loads(find(ctx, rule, subject)["evidence"])
+    assert evidence["thresholds"] == json.loads(text), evidence
+
+
+@then(parsers.parse('the start of "{rule}" for "{subject}" records no thresholds'))
+def records_none(ctx, rule: str, subject: str) -> None:
+    evidence = json.loads(find(ctx, rule, subject)["evidence"])
+    assert "thresholds" not in evidence, evidence
+
+
 @then(parsers.parse("every signal started at {clock} and has not ended"))
 def all_started(ctx, clock: str) -> None:
     signals = printed(ctx)

@@ -16,16 +16,43 @@ Feature: The evaluator
   Scenario: Every breach starts a signal
     When the evaluator runs at 10:30
     Then it succeeds
-    And it starts "storage_unreachable" for "example" as critical
+    And it starts "storage_errors" for "example" as warning
     And it starts "sender_silent" for "example/web" with "last_seen" "2026-11-01T10:10:30Z"
     And it starts "plugin_errors" for "example/service/github.edit-pr"
+    And it writes nothing for "storage_unreachable"
     And every signal started at 10:30 and has not ended
 
-  Scenario: A breach already open is not written again
-    Given the open signal "storage_unreachable" for "example" since 10:10
+  Scenario: A rule with params records the thresholds it ran with in each signal it starts
     When the evaluator runs at 10:30
     Then it succeeds
-    And it writes nothing for "storage_unreachable"
+    And it starts "sender_silent" for "example/web" as critical
+    And the start of "sender_silent" for "example/web" records the thresholds "{"silent_minutes": 10}"
+    And the start of "storage_errors" for "example" records no thresholds
+
+  Scenario: OBSERVABILITY_THRESHOLDS sets a rule's threshold and severity, and its signals record them
+    Given the environment sets "OBSERVABILITY_THRESHOLDS" to "{"version": 1, "rules": {"sender_silent": {"silent_minutes": 15, "severity": "warning"}}}"
+    When the evaluator runs at 10:30
+    Then it succeeds
+    And it starts "sender_silent" for "example/web" as warning
+    And the start of "sender_silent" for "example/web" records the thresholds "{"silent_minutes": 15}"
+
+  Scenario: A threshold OBSERVABILITY_THRESHOLDS raises past a silence leaves it alone
+    Given the environment sets "OBSERVABILITY_THRESHOLDS" to "{version: 1, rules: {sender_silent: {silent_minutes: 30}}}"
+    When the evaluator runs at 10:30
+    Then it succeeds
+    And it writes nothing for "sender_silent"
+
+  Scenario: OBSERVABILITY_THRESHOLDS set to its version and no rules changes nothing
+    Given the environment sets "OBSERVABILITY_THRESHOLDS" to "{"version": 1, "rules": {}}"
+    When the evaluator runs at 10:30
+    Then it succeeds
+    And it starts "sender_silent" for "example/web" as critical
+
+  Scenario: A breach already open is not written again
+    Given the open signal "storage_errors" for "example" since 10:10
+    When the evaluator runs at 10:30
+    Then it succeeds
+    And it writes nothing for "storage_errors"
 
   Scenario: An open signal no longer in breach ends, keeping its start
     Given the open signal "sender_silent" for "example/app" since 10:10
@@ -55,7 +82,7 @@ Feature: The evaluator
     Given BigQuery answers each query only on the second ask
     When the evaluator runs at 10:30
     Then it succeeds
-    And it starts "storage_unreachable" for "example" as critical
+    And it starts "storage_errors" for "example" as warning
 
   Scenario: A query that never finishes fails its rule
     Given BigQuery never finishes a query
@@ -94,6 +121,20 @@ Feature: The evaluator
       | OBSERVABILITY_SENDERS      | elsewhere: {app: always}  | OBSERVABILITY_SENDERS names elsewhere           |
       | OBSERVABILITY_SENDERS      | example: {}               | example maps each sender prefix                 |
       | OBSERVABILITY_SENDERS      | example: {app: sometimes} | example/app is always or on-demand, not sometimes |
+      | OBSERVABILITY_THRESHOLDS   | version: [                                                     | OBSERVABILITY_THRESHOLDS is not YAML |
+      | OBSERVABILITY_THRESHOLDS   | [1]                                                            | OBSERVABILITY_THRESHOLDS is a mapping with a version and its rules |
+      | OBSERVABILITY_THRESHOLDS   | {rules: {}}                                                    | OBSERVABILITY_THRESHOLDS is a mapping with a version and its rules |
+      | OBSERVABILITY_THRESHOLDS   | {version: 1, rule: {}}                                         | OBSERVABILITY_THRESHOLDS has a version and rules, and no rule |
+      | OBSERVABILITY_THRESHOLDS   | {version: 2, rules: {}}                                        | OBSERVABILITY_THRESHOLDS is version 1, not 2 |
+      | OBSERVABILITY_THRESHOLDS   | {version: true, rules: {}}                                     | OBSERVABILITY_THRESHOLDS is version 1, not True |
+      | OBSERVABILITY_THRESHOLDS   | {version: 1, rules: [sender_silent]}                           | OBSERVABILITY_THRESHOLDS: rules maps each rule to its thresholds |
+      | OBSERVABILITY_THRESHOLDS   | {version: 1, rules: {quiet: {silent_minutes: 5}}}              | OBSERVABILITY_THRESHOLDS names the rule quiet, which there is not |
+      | OBSERVABILITY_THRESHOLDS   | {version: 1, rules: {sender_silent: 5}}                        | OBSERVABILITY_THRESHOLDS: sender_silent maps each of its params to a number |
+      | OBSERVABILITY_THRESHOLDS   | {version: 1, rules: {sender_silent: {minutes: 5}}}             | sender_silent has no param minutes; its params are silent_minutes |
+      | OBSERVABILITY_THRESHOLDS   | {version: 1, rules: {drops: {limit: 5}}}                       | drops has no param limit; it has no params |
+      | OBSERVABILITY_THRESHOLDS   | {version: 1, rules: {sender_silent: {silent_minutes: soon}}}   | sender_silent's silent_minutes is a number, not soon |
+      | OBSERVABILITY_THRESHOLDS   | {version: 1, rules: {sender_silent: {silent_minutes: false}}}  | sender_silent's silent_minutes is a number, not False |
+      | OBSERVABILITY_THRESHOLDS   | {version: 1, rules: {sender_silent: {severity: loud}}}         | sender_silent's severity is critical, warning, info, not loud |
       | OBSERVABILITY_GOOGLE_CREDENTIAL_FILE | /nonexistent    | OBSERVABILITY_GOOGLE_CREDENTIAL_FILE is not a readable JSON file |
 
   Scenario Outline: A setting it needs is checked
@@ -127,10 +168,10 @@ Feature: The evaluator
 
   Scenario: A start written but not loaded yet is open, so it isn't written again
     Given the environment sets "OBSERVABILITY_STORAGE_URL" to "https://storage.example.test"
-    And the tenant holds a start of "storage_unreachable" for "example" at 10:28, not loaded yet
+    And the tenant holds a start of "storage_errors" for "example" at 10:28, not loaded yet
     When the evaluator runs at 10:30
     Then it succeeds
-    And it writes nothing for "storage_unreachable"
+    And it writes nothing for "storage_errors"
 
   Scenario: An end written but not loaded yet closes the open signal, so it isn't ended twice
     Given the environment sets "OBSERVABILITY_STORAGE_URL" to "https://storage.example.test"

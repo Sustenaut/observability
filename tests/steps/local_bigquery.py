@@ -59,7 +59,10 @@ class Warehouse:
         self.pubrules_checks([])
 
     def load(self, dataset: str, fixture: str) -> None:
-        rows = json.loads((HERE / "fixtures" / f"{fixture}.json").read_text())
+        self.hold(dataset, json.loads((HERE / "fixtures" / f"{fixture}.json").read_text()), fixture)
+
+    def hold(self, dataset: str, rows: dict, fixture: str = "the rows") -> None:
+        """The dataset, holding these rows of its tables as a fixture writes them."""
         if dataset not in self.made:
             self.db.execute(f"CREATE SCHEMA {dataset}")
             for table in ("status", "calls"):
