@@ -2,16 +2,18 @@
 
 from __future__ import annotations
 
+import sys
 from datetime import datetime, timezone
 
 import pytest
 import yaml
-from pytest_bdd import given, parsers, scenarios, then, when
+from pytest_bdd import given, parsers, scenarios, when
 
 from observability import cli, rules, senders
 from observability.config import Dataset
 
 from .local_bigquery import DAY, Warehouse
+from .shown import table
 
 scenarios("../features/rules.feature")
 
@@ -23,7 +25,7 @@ def warehouse() -> Warehouse:
 
 @pytest.fixture
 def ran() -> dict:
-    return {"datasets": [], "senders": {}}
+    return {"datasets": [], "senders_text": ""}
 
 
 @given(parsers.parse('the dataset "{dataset}" holds "{fixture}"'))
@@ -33,7 +35,7 @@ def holds(warehouse: Warehouse, ran: dict, dataset: str, fixture: str) -> None:
 
 
 @given(parsers.parse('a fresh dataset "{dataset}" holding "{fixture}"'))
-def fresh(warehouse: Warehouse, ran: dict, dataset: str, fixture: str) -> None:
+def fresh(warehouse: Warehouse, dataset: str, fixture: str) -> None:
     warehouse.load(dataset, fixture)
 
 
@@ -58,60 +60,30 @@ def moment(clock: str) -> datetime:
     return datetime.fromisoformat(f"{DAY}T{clock}:00").replace(tzinfo=timezone.utc)
 
 
-def run(warehouse: Warehouse, ran: dict, rule: str, clock: str, datasets: list[Dataset]) -> None:
-    expected = senders.parse(ran.get("senders_text", ""), datasets)
-    ran["rows"] = warehouse.run(rules.load()[rule].sql(datasets, senders.always(expected), moment(clock)))
+def run(ctx, warehouse: Warehouse, ran: dict, rule: str, clock: str, datasets: list[Dataset]) -> None:
+    def found() -> list[dict]:
+        expected = senders.parse(ran["senders_text"], datasets)
+        return table(warehouse.run(rules.load()[rule].sql(datasets, senders.always(expected), moment(clock))))
+
+    ctx.attempt(found)
 
 
 @when(parsers.parse('the rule "{rule}" runs at {clock} over "{dataset}"'))
-def runs_over(warehouse: Warehouse, ran: dict, rule: str, clock: str, dataset: str) -> None:
-    run(warehouse, ran, rule, clock, [Dataset(dataset)])
+def runs_over(ctx, warehouse: Warehouse, ran: dict, rule: str, clock: str, dataset: str) -> None:
+    run(ctx, warehouse, ran, rule, clock, [Dataset(dataset)])
 
 
 @when(parsers.re(r'the rule "(?P<rule>[a-z_]+)" runs at (?P<clock>\d\d:\d\d)$'))
-def runs(warehouse: Warehouse, ran: dict, rule: str, clock: str) -> None:
-    run(warehouse, ran, rule, clock, ran["datasets"])
-
-
-def shown(value: object) -> str:
-    if value is None:
-        return ""
-    if isinstance(value, datetime):
-        return value.strftime("%H:%M")
-    return str(value)
-
-
-@then("it finds")
-def finds(ran: dict, datatable: list[list[str]]) -> None:
-    columns, *expected = datatable
-    got = sorted([shown(row[c]) for c in columns] for row in ran["rows"])
-    assert got == sorted(expected), f"{columns}\n{got}"
-
-
-@then("it finds nothing")
-def finds_nothing(ran: dict) -> None:
-    assert ran["rows"] == [], ran["rows"]
+def runs(ctx, warehouse: Warehouse, ran: dict, rule: str, clock: str) -> None:
+    run(ctx, warehouse, ran, rule, clock, ran["datasets"])
 
 
 @when(parsers.parse('a rule file "{name}" reads "{text}"'))
-def rule_file(ran: dict, name: str, text: str) -> None:
-    try:
-        rules.parse(name, yaml.safe_load(text))
-    except ValueError as error:
-        ran["error"] = str(error)
+def rule_file(ctx, name: str, text: str) -> None:
+    read = yaml.safe_load(text)
+    ctx.attempt(lambda: rules.parse(name, read))
 
 
-@then(parsers.parse('reading it fails with "{message}"'))
-def fails(ran: dict, message: str) -> None:
-    assert ran.get("error", "").startswith(message), ran.get("error")
-
-
-@when("I list the rules")
-def list_rules(ran: dict, capsys) -> None:
-    assert cli.main(["rules"]) == 0
-    ran["out"] = capsys.readouterr().out
-
-
-@then(parsers.parse('the list has "{text}"'))
-def list_has(ran: dict, text: str) -> None:
-    assert text.replace("\\t", "\t") in ran["out"], ran["out"]
+@when("the rules are listed")
+def list_rules(ctx) -> None:
+    ctx.attempt(lambda: sys.exit(cli.main(["rules"])))

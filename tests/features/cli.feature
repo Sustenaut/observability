@@ -1,51 +1,72 @@
 Feature: The observability command
 
+  Background:
+    Given the program under test is "observability"
+    And the environment does not set "OBSERVABILITY_DATASETS"
+
   Scenario: It reports its version
-    When I run observability with "--version"
+    When I run "observability --version"
     Then it succeeds
     And it prints "observability 0.1.0"
 
   Scenario: With no command it describes itself
-    When I run observability with no arguments
+    When I run "observability"
     Then it succeeds
     And it prints "usage: observability"
 
   Scenario: It lists the facts with their versions
-    When I run observability with "facts"
+    When I run "observability facts"
     Then it succeeds
-    And it prints "sender_windows\tversion 2\treads status"
-    And it prints "call_rollups\tversion 2\treads calls"
-    And it prints "need_states\tversion 1\treads convergence.need_states"
+    And it prints "sender_windows	version 2	reads status"
+    And it prints "call_rollups	version 2	reads calls"
+    And it prints "need_states	version 1	reads convergence.need_states"
 
   Scenario: It prints a fact's query for the datasets configured
-    Given OBSERVABILITY_DATASETS is "calls_example, calls_other"
-    When I run observability with "facts sender_windows"
+    Given the environment sets "OBSERVABILITY_DATASETS" to "calls_example, calls_other"
+    When I run "observability facts sender_windows"
     Then it succeeds
     And it prints "FROM calls_example.status"
     And it prints "'other' AS project"
 
   Scenario: A dataset given on the command line wins
-    Given OBSERVABILITY_DATASETS is "calls_example"
-    When I run observability with "facts call_rollups --dataset calls_given"
+    Given the environment sets "OBSERVABILITY_DATASETS" to "calls_example"
+    When I run "observability facts call_rollups --dataset calls_given"
     Then it succeeds
     And it prints "FROM calls_given.calls"
 
   Scenario: With no dataset it says how to give one
-    When I run observability with "facts sender_windows"
-    Then it fails with "no dataset: give --dataset or set OBSERVABILITY_DATASETS"
+    When I run "observability facts sender_windows"
+    Then the exit code is 2
+    And stderr mentions "observability: no dataset: give --dataset or set OBSERVABILITY_DATASETS"
 
   Scenario: A name that is not a dataset's is refused
-    When I run observability with "facts sender_windows --dataset 'x; DROP'"
-    Then it fails with "'x; DROP' is not a BigQuery dataset name"
+    When I run "observability facts sender_windows --dataset 'x; DROP'"
+    Then the exit code is 2
+    And stderr mentions "observability: 'x; DROP' is not a BigQuery dataset name"
 
   Scenario: A fact that reads one table needs no dataset
-    When I run observability with "facts need_states"
+    When I run "observability facts need_states"
     Then it succeeds
     And it prints "FROM convergence.need_states"
 
   Scenario: An unknown fact is named
-    When I run observability with "facts nope --dataset calls_example"
-    Then it fails with "no fact nope; there are call_rollups, need_states, pubrules_checks, sender_windows"
+    When I run "observability facts nope --dataset calls_example"
+    Then the exit code is 2
+    And stderr mentions "observability: no fact nope; there are call_rollups, need_states, pubrules_checks, sender_windows"
 
-  Scenario: The image the package and the tests install one integrations wheel
-    Then the image the package and the tests install one integrations wheel
+  # integrations is pinned in four files, and CI builds no image: the
+  # Dockerfile's lock (evaluator-requirements.in and .lock), pyproject.toml's
+  # extra and tests/requirements.txt must name one wheel, or the deploy's
+  # build is the first to find out.
+  Scenario: The image, the package and the tests each pin one integrations wheel
+    When the integrations wheels the requirements name are read
+    Then the result is:
+      | file                        | wheels |
+      | evaluator-requirements.in   | 1      |
+      | evaluator-requirements.lock | 1      |
+      | pyproject.toml              | 1      |
+      | tests/requirements.txt      | 1      |
+
+  Scenario: The image, the package and the tests pin the same integrations wheel
+    When the integrations wheels the requirements name are gathered
+    Then the result has 1 wheel

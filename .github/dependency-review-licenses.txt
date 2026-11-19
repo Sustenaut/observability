@@ -9,3 +9,4 @@ pkg:githubactions/Sustenaut/pubrules/.github/workflows/job-python-functional.yml
 pkg:githubactions/Sustenaut/pubrules/.github/workflows/job-review.yml
 pkg:githubactions/Sustenaut/pubrules/.github/workflows/job-sonar.yml
 pkg:githubactions/Sustenaut/pubrules/.github/workflows/job-tested.yml
+pkg:githubactions/Sustenaut/pubrules/.github/workflows/service-needs.yml

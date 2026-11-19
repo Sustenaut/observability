@@ -6,10 +6,12 @@ Feature: The evaluator
   stand-in that runs each query on fixture rows.
 
   Background:
-    Given the dataset "calls_example" holds "unhealthy"
-    And OBSERVABILITY_DATASETS is "calls_example"
-    And OBSERVABILITY_SENDERS is "example: {app: always, web: always}"
-    And a service account key in the credential file
+    Given a scratch directory
+    And the dataset "calls_example" holds "unhealthy"
+    And the environment sets "OBSERVABILITY_DATASETS" to "calls_example"
+    And the environment sets "OBSERVABILITY_SENDERS" to "example: {app: always, web: always}"
+    And the environment does not set "OBSERVABILITY_STORAGE_URL"
+    And a service account key in "credential.json", the credential file
 
   Scenario: Every breach starts a signal
     When the evaluator runs at 10:30
@@ -45,7 +47,7 @@ Feature: The evaluator
     Given the open signal "plugin_errors" for "example/service/slack.post" since 10:10
     And BigQuery refuses queries of "calls"
     When the evaluator runs at 10:30
-    Then it fails with code 1
+    Then the exit code is 1
     And stderr mentions "plugin_errors failed, so its signals stay as they were"
     And it writes nothing for "example/service/slack.post"
 
@@ -58,11 +60,11 @@ Feature: The evaluator
   Scenario: A query that never finishes fails its rule
     Given BigQuery never finishes a query
     When the evaluator runs at 10:30
-    Then it fails with code 2
+    Then the exit code is 2
     And stderr mentions "did not finish"
 
   Scenario: An answer over several pages is read whole
-    Given OBSERVABILITY_SENDERS is "example: {web: always, gone: always}"
+    Given the environment sets "OBSERVABILITY_SENDERS" to "example: {web: always, gone: always}"
     And BigQuery answers one row a page
     When the evaluator runs at 10:30
     Then it succeeds
@@ -70,55 +72,68 @@ Feature: The evaluator
     And it starts "sender_silent" for "example/gone"
 
   Scenario: An external_account credential, the pod's with no key, is taken through Workload Identity
-    Given the credential file holds google-credential.yaml's external_account credential
-    Then the evaluator's warehouse trades the pod's token for observability-reader's, in project sustenaut
+    Given a file "credential.json" holding the credential of "k8s/google-credential.yaml"
+    When the evaluator's warehouse is made from the credential file
+    Then the result's "token" is "FederatedToken"
+    And the result's "project" is "sustenaut"
 
   Scenario: Without a time it evaluates now
     When the evaluator runs now
     Then it succeeds
 
   Scenario Outline: Its configuration is checked
-    Given <setting> is "<value>"
+    Given the environment sets "<setting>" to "<value>"
     When the evaluator runs at 10:30
-    Then it fails with code 2
+    Then the exit code is 2
     And stderr mentions "<message>"
 
     Examples:
       | setting                    | value                     | message                                         |
-      | OBSERVABILITY_DATASETS     |                           | no dataset: set OBSERVABILITY_DATASETS          |
       | OBSERVABILITY_SENDERS      | example: [                | OBSERVABILITY_SENDERS is not YAML               |
       | OBSERVABILITY_SENDERS      | [1]                       | OBSERVABILITY_SENDERS maps each project         |
       | OBSERVABILITY_SENDERS      | elsewhere: {app: always}  | OBSERVABILITY_SENDERS names elsewhere           |
       | OBSERVABILITY_SENDERS      | example: {}               | example maps each sender prefix                 |
       | OBSERVABILITY_SENDERS      | example: {app: sometimes} | example/app is always or on-demand, not sometimes |
-      | OBSERVABILITY_GOOGLE_CREDENTIAL_FILE |                 | no credential: set OBSERVABILITY_GOOGLE_CREDENTIAL_FILE |
       | OBSERVABILITY_GOOGLE_CREDENTIAL_FILE | /nonexistent    | OBSERVABILITY_GOOGLE_CREDENTIAL_FILE is not a readable JSON file |
 
-  Scenario: A credential file that is neither kind is said
-    Given the credential file holds {"not": "a key"}
+  Scenario Outline: A setting it needs is checked
+    Given the environment does not set "<setting>"
     When the evaluator runs at 10:30
-    Then it fails with code 2
+    Then the exit code is 2
+    And stderr mentions "<message>"
+
+    Examples:
+      | setting                              | message                                                 |
+      | OBSERVABILITY_DATASETS               | no dataset: set OBSERVABILITY_DATASETS                  |
+      | OBSERVABILITY_GOOGLE_CREDENTIAL_FILE | no credential: set OBSERVABILITY_GOOGLE_CREDENTIAL_FILE |
+
+  Scenario: A credential file that is neither kind is said
+    Given a file "credential.json" holding "{"not": "a key"}"
+    When the evaluator runs at 10:30
+    Then the exit code is 2
     And stderr mentions "OBSERVABILITY_GOOGLE_CREDENTIAL_FILE is neither an external_account credential nor a service account's key"
 
   Scenario: BigQuery's answers are read by their types
     When BigQuery answers a row of every type
-    Then the row reads as Python values
+    Then the result is:
+      | n | x   | b    | t                         | s | l      | z    |
+      | 3 | 0.5 | true | 2025-11-01 12:26:40+00:00 | a | [1, 2] | null |
 
   Scenario: With storage, the run's signals are written to the signals tenant, one file
-    Given the signals tenant is OBSERVABILITY_STORAGE_URL
+    Given the environment sets "OBSERVABILITY_STORAGE_URL" to "https://storage.example.test"
     When the evaluator runs at 10:30
     Then it succeeds
     And one file of 10 signals is written to inbox/signals/2026-11-01/
 
   Scenario: A start written but not loaded yet is open, so it isn't written again
-    Given the signals tenant is OBSERVABILITY_STORAGE_URL
+    Given the environment sets "OBSERVABILITY_STORAGE_URL" to "https://storage.example.test"
     And the tenant holds a start of "storage_unreachable" for "example" at 10:28, not loaded yet
     When the evaluator runs at 10:30
     Then it succeeds
     And it writes nothing for "storage_unreachable"
 
   Scenario: An end written but not loaded yet closes the open signal, so it isn't ended twice
-    Given the signals tenant is OBSERVABILITY_STORAGE_URL
+    Given the environment sets "OBSERVABILITY_STORAGE_URL" to "https://storage.example.test"
     And the open signal "sender_silent" for "example/app" since 10:10
     And the tenant holds an end of "sender_silent" for "example/app" started at 10:10, not loaded yet
     When the evaluator runs at 10:30
@@ -126,40 +141,53 @@ Feature: The evaluator
     And it writes nothing for "sender_silent" on "example/app"
 
   Scenario: An end of another start leaves the open signal open
-    Given the signals tenant is OBSERVABILITY_STORAGE_URL
+    Given the environment sets "OBSERVABILITY_STORAGE_URL" to "https://storage.example.test"
     And the open signal "sender_silent" for "example/app" since 10:10
     And the tenant holds an end of "sender_silent" for "example/app" started at 09:00, not loaded yet
     When the evaluator runs at 10:30
     Then it ends "sender_silent" for "example/app", started at 10:10
 
   Scenario: A file loaded between its listing and its reading is skipped
-    Given the signals tenant is OBSERVABILITY_STORAGE_URL
+    Given the environment sets "OBSERVABILITY_STORAGE_URL" to "https://storage.example.test"
     And a file in the tenant is loaded between its listing and its reading
     When the evaluator runs at 10:30
     Then it succeeds
 
   Scenario: A run with nothing to say writes no file
-    Given the signals tenant is OBSERVABILITY_STORAGE_URL
+    Given the environment sets "OBSERVABILITY_STORAGE_URL" to "https://storage.example.test"
     And the dataset "calls_fine" holds "healthy"
-    And OBSERVABILITY_DATASETS is "calls_fine"
-    And OBSERVABILITY_SENDERS is "fine: {app: always}"
+    And the environment sets "OBSERVABILITY_DATASETS" to "calls_fine"
+    And the environment sets "OBSERVABILITY_SENDERS" to "fine: {app: always}"
     When the evaluator runs at 10:30
     Then it succeeds
     And nothing is written to the tenant
+    And stderr does not mention "wrote"
 
   Scenario: Signals storage refuses fail the run
-    Given the signals tenant is OBSERVABILITY_STORAGE_URL
+    Given the environment sets "OBSERVABILITY_STORAGE_URL" to "https://storage.example.test"
     And storage refuses writes
     When the evaluator runs at 10:30
-    Then it fails with code 1
+    Then the exit code is 1
     And stderr mentions "the signals could not be written"
 
   Scenario: Without the signals not loaded yet, nothing is evaluated
-    Given the signals tenant is OBSERVABILITY_STORAGE_URL
+    Given the environment sets "OBSERVABILITY_STORAGE_URL" to "https://storage.example.test"
     And storage does not answer listings
     When the evaluator runs at 10:30
-    Then it fails with code 2
+    Then the exit code is 2
     And stderr mentions "could not read the open signals"
 
-  Scenario: The projected token the credential and the provider name one audience
-    Then the projected token the credential and the provider name one audience
+  # A mismatch fails only at run time, as Google's STS refusing the token: the
+  # evaluator's and the page's projected tokens, and the credential's audience,
+  # are the services pool's provider (Sustenaut/shared-infra's services_google output).
+  Scenario: The credential names the services pool's provider, and the token the pods mount
+    When the credential in "k8s/google-credential.yaml" is read
+    Then the result's "audience" is "//iam.googleapis.com/projects/948171295184/locations/global/workloadIdentityPools/services/providers/sustenaut-k3s"
+    And the result's "credential_source.file" is "/var/run/secrets/google/token"
+
+  Scenario: Each pod's projected token has the provider as its audience, where the credential reads it
+    When the pods' Google credentials are read
+    Then the result is:
+      | pod       | account   | automount | audience                                                                                                     | token                         | credential_dir | credential                  |
+      | evaluator | evaluator | false     | //iam.googleapis.com/projects/948171295184/locations/global/workloadIdentityPools/services/providers/sustenaut-k3s | /var/run/secrets/google/token | /etc/google    | /etc/google/credential.json |
+      | page      | page      | false     | //iam.googleapis.com/projects/948171295184/locations/global/workloadIdentityPools/services/providers/sustenaut-k3s | /var/run/secrets/google/token | /etc/google    | /etc/google/credential.json |
