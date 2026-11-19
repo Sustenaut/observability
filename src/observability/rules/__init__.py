@@ -49,6 +49,7 @@ the page shows.
 
 from __future__ import annotations
 
+import math
 import re
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
@@ -172,8 +173,13 @@ def is_number(value: object) -> bool:
     return isinstance(value, (int, float)) and not isinstance(value, bool)
 
 
+def is_threshold(value: object) -> bool:
+    """A param's number: finite and above 0, so no nan, inf, 0 or less."""
+    return is_number(value) and math.isfinite(value) and value > 0
+
+
 def params(name: str, data: object) -> dict[str, float]:
-    """A rule's params, each a name and a number."""
+    """A rule's params, each a name and a finite number above 0."""
     if data is None:
         return {}
     if not isinstance(data, dict):
@@ -181,8 +187,8 @@ def params(name: str, data: object) -> dict[str, float]:
     for key, value in data.items():
         if not isinstance(key, str) or not PARAM_NAME.fullmatch(key):
             raise ValueError(f"{name}.yaml: a param's name is lowercase letters and underscores, not {key}")
-        if not is_number(value):
-            raise ValueError(f"{name}.yaml: the param {key} is a number, not {value}")
+        if not is_threshold(value):
+            raise ValueError(f"{name}.yaml: the param {key} is a finite number above 0, not {value}")
     return dict(data)
 
 

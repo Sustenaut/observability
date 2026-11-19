@@ -185,7 +185,7 @@ query: |
 versioned block that gives a rule's params other numbers and may give it another
 severity. A rule or param it leaves out keeps the rule file's default, and empty or
 unset every rule runs as its file says. It names only rules there are and params they
-have, each value a number and a severity `critical`, `warning` or `info`; anything else,
+have, each value a finite number above 0 and a severity `critical`, `warning` or `info`; anything else,
 or a version other than 1, is refused, and the evaluator (and the page) won't start.
 
 ```yaml
@@ -198,6 +198,12 @@ rules:
     window_cycles: 6
     severity: warning
 ```
+
+`storage_unreachable`'s 20-minute lookback holds about 9 two-minute buckets, so a
+`window_cycles` above about 9 also needs a longer `lookback_minutes` in its rule file.
+
+`bin/observability thresholds --check` checks `OBSERVABILITY_THRESHOLDS`, or a file
+given after it, as the evaluator would, and exits 2 with the reason it would refuse it.
 
 Each signal a rule with params starts records the ones it ran with in its evidence, as
 `thresholds` (`{"silent_minutes": 10}`), so its history says which threshold applied

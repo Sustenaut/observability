@@ -1,4 +1,4 @@
 {
   "category": "added",
-  "change": "Rules may have params, their thresholds as numbers that the query reads as {{param:<name>}}, and a trend's threshold may name one; OBSERVABILITY_THRESHOLDS, a versioned block, sets other numbers and severities for them (an unknown version, rule or param, a value that is not a number, or a bad severity stops the evaluator), and each signal a rule with params starts records the thresholds it ran with in its evidence"
+  "change": "Rules may have params, their thresholds as numbers that the query reads as {{param:<name>}}, and a trend's threshold may name one; OBSERVABILITY_THRESHOLDS, a versioned block, sets other numbers and severities for them (an unknown version, rule or param, a value that is not a finite number above 0, or a bad severity stops the evaluator; `observability thresholds --check` says so without starting it), and each signal a rule with params starts records the thresholds it ran with in its evidence"
 }

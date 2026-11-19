@@ -14,7 +14,7 @@ may give a rule another severity:
 
 A rule or param it leaves out keeps the rule file's default; empty or unset,
 every rule runs as its file says. It names only rules there are and params
-they have, each a number, and a severity is critical, warning or info:
+they have, each a finite number above 0, and a severity is critical, warning or info:
 anything else is refused, and the evaluator doesn't start.
 """
 
@@ -23,7 +23,7 @@ from __future__ import annotations
 from dataclasses import replace
 from typing import Any
 
-from observability.rules import SEVERITIES, Rule, is_number
+from observability.rules import SEVERITIES, Rule, is_threshold
 
 VARIABLE = "OBSERVABILITY_THRESHOLDS"
 VERSIONS = (1,)
@@ -65,8 +65,8 @@ def parse(text: str, every: dict[str, Rule]) -> dict[str, dict[str, Any]]:
             elif key not in rule.params:
                 has = f"its params are {', '.join(sorted(rule.params))}" if rule.params else "it has no params"
                 raise ValueError(f"{VARIABLE}: {rule_id} has no param {key}; {has}")
-            elif not is_number(value):
-                raise ValueError(f"{VARIABLE}: {rule_id}'s {key} is a number, not {value}")
+            elif not is_threshold(value):
+                raise ValueError(f"{VARIABLE}: {rule_id}'s {key} is a finite number above 0, not {value}")
         out[str(rule_id)] = dict(given)
     return out
 

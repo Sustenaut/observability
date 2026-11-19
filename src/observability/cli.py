@@ -38,7 +38,15 @@ def main(argv: list[str] | None = None, *, transport: Any = None, storage_token:
     evaluating = commands.add_parser(
         "evaluate", help="run every rule, and print the signals starting and ending now as JSON lines")
     evaluating.add_argument("--now", help="the moment to evaluate, in ISO 8601 (default: now)")
+    checking = commands.add_parser(
+        "thresholds", help=f"check ${thresholds.VARIABLE}, or a file holding it, against the rules")
+    checking.add_argument("--check", action="store_true", required=True,
+                          help="check only: exit 2 with the reason when it would be refused")
+    checking.add_argument("file", nargs="?", type=Path,
+                          help=f"a file holding the block (default: ${thresholds.VARIABLE})")
     args = parser.parse_args(argv)
+    if args.command == "thresholds":
+        return check_thresholds(args.file)
     if args.command == "rules":
         from observability import rules  # noqa: PLC0415 - needs PyYAML
 
@@ -72,6 +80,26 @@ def main(argv: list[str] | None = None, *, transport: Any = None, storage_token:
         print(f"observability: {error}", file=sys.stderr)
         return 2
     print(fact.union(datasets))
+    return 0
+
+
+def check_thresholds(path: Path | None) -> int:
+    """Whether OBSERVABILITY_THRESHOLDS, or the file at `path`, is one the evaluator
+    would start with: 0 when it is, 2 with the reason when it isn't."""
+    from observability import rules  # noqa: PLC0415 - needs PyYAML
+
+    try:
+        text = path.read_text(encoding="utf-8") if path else os.environ.get(thresholds.VARIABLE, "")
+    except OSError as error:
+        print(f"observability: {path} can't be read: {error.strerror}", file=sys.stderr)
+        return 2
+    try:
+        found = thresholds.parse(text, rules.load())
+    except ValueError as error:
+        print(f"observability: {error}", file=sys.stderr)
+        return 2
+    print(f"{thresholds.VARIABLE}: overrides for {', '.join(found)}" if found
+          else f"{thresholds.VARIABLE}: no overrides, every rule as its file says")
     return 0
 
 

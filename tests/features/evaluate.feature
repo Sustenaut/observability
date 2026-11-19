@@ -132,8 +132,13 @@ Feature: The evaluator
       | OBSERVABILITY_THRESHOLDS   | {version: 1, rules: {sender_silent: 5}}                        | OBSERVABILITY_THRESHOLDS: sender_silent maps each of its params to a number |
       | OBSERVABILITY_THRESHOLDS   | {version: 1, rules: {sender_silent: {minutes: 5}}}             | sender_silent has no param minutes; its params are silent_minutes |
       | OBSERVABILITY_THRESHOLDS   | {version: 1, rules: {drops: {limit: 5}}}                       | drops has no param limit; it has no params |
-      | OBSERVABILITY_THRESHOLDS   | {version: 1, rules: {sender_silent: {silent_minutes: soon}}}   | sender_silent's silent_minutes is a number, not soon |
-      | OBSERVABILITY_THRESHOLDS   | {version: 1, rules: {sender_silent: {silent_minutes: false}}}  | sender_silent's silent_minutes is a number, not False |
+      | OBSERVABILITY_THRESHOLDS   | {version: 1, rules: {sender_silent: {silent_minutes: soon}}}   | sender_silent's silent_minutes is a finite number above 0, not soon |
+      | OBSERVABILITY_THRESHOLDS   | {version: 1, rules: {sender_silent: {silent_minutes: false}}}  | sender_silent's silent_minutes is a finite number above 0, not False |
+      | OBSERVABILITY_THRESHOLDS   | {version: 1, rules: {sender_silent: {silent_minutes: .nan}}} | sender_silent's silent_minutes is a finite number above 0, not nan |
+      | OBSERVABILITY_THRESHOLDS   | {version: 1, rules: {sender_silent: {silent_minutes: .inf}}} | sender_silent's silent_minutes is a finite number above 0, not inf |
+      | OBSERVABILITY_THRESHOLDS   | {version: 1, rules: {sender_silent: {silent_minutes: -.inf}}} | sender_silent's silent_minutes is a finite number above 0, not -inf |
+      | OBSERVABILITY_THRESHOLDS   | {version: 1, rules: {sender_silent: {silent_minutes: 0}}} | sender_silent's silent_minutes is a finite number above 0, not 0 |
+      | OBSERVABILITY_THRESHOLDS   | {version: 1, rules: {sender_silent: {silent_minutes: -5}}} | sender_silent's silent_minutes is a finite number above 0, not -5 |
       | OBSERVABILITY_THRESHOLDS   | {version: 1, rules: {sender_silent: {severity: loud}}}         | sender_silent's severity is critical, warning, info, not loud |
       | OBSERVABILITY_GOOGLE_CREDENTIAL_FILE | /nonexistent    | OBSERVABILITY_GOOGLE_CREDENTIAL_FILE is not a readable JSON file |
 

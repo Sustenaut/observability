@@ -54,6 +54,31 @@ Feature: The observability command
     Then the exit code is 2
     And stderr mentions "observability: no fact nope; there are call_rollups, need_states, pubrules_checks, sender_windows"
 
+  Scenario: An empty OBSERVABILITY_THRESHOLDS passes the check
+    Given the environment sets "OBSERVABILITY_THRESHOLDS" to "{version: 1, rules: {}}"
+    When I run "observability thresholds --check"
+    Then it succeeds
+    And it prints "OBSERVABILITY_THRESHOLDS: no overrides, every rule as its file says"
+
+  Scenario: A file holding the thresholds is checked instead
+    Given a scratch directory
+    And a file "thresholds.yaml" holding "{version: 1, rules: {sender_silent: {silent_minutes: 20}}}"
+    When I run "observability thresholds --check thresholds.yaml"
+    Then it succeeds
+    And it prints "OBSERVABILITY_THRESHOLDS: overrides for sender_silent"
+
+  Scenario: Thresholds the evaluator would refuse fail the check, saying why
+    Given the environment sets "OBSERVABILITY_THRESHOLDS" to "{version: 1, rules: {sender_silent: {silent_minutes: 0}}}"
+    When I run "observability thresholds --check"
+    Then the exit code is 2
+    And stderr mentions "observability: OBSERVABILITY_THRESHOLDS: sender_silent's silent_minutes is a finite number above 0, not 0"
+
+  Scenario: A file that can't be read fails the check
+    Given a scratch directory
+    When I run "observability thresholds --check missing.yaml"
+    Then the exit code is 2
+    And stderr mentions "observability: missing.yaml can't be read"
+
   # integrations is pinned in four files, and CI builds no image: the
   # Dockerfile's lock (evaluator-requirements.in and .lock), pyproject.toml's
   # extra and tests/requirements.txt must name one wheel, or the deploy's

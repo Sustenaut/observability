@@ -279,8 +279,13 @@ Feature: Rules over the facts
       | r     | {id: r, version: 1, severity: info, summary: s, lookback_minutes: 5, query: q, params: {limit: 1}}      | r.yaml: no query uses the param limit                     |
       | r     | {id: r, version: 1, severity: info, summary: s, lookback_minutes: 5, query: q, params: [1]}             | r.yaml: params maps each name to a number                 |
       | r     | {id: r, version: 1, severity: info, summary: s, lookback_minutes: 5, query: q, params: {Limit: 1}}      | r.yaml: a param's name is lowercase letters and underscores, not Limit |
-      | r     | {id: r, version: 1, severity: info, summary: s, lookback_minutes: 5, query: q, params: {limit: ten}}    | r.yaml: the param limit is a number, not ten              |
-      | r     | {id: r, version: 1, severity: info, summary: s, lookback_minutes: 5, query: q, params: {limit: true}}   | r.yaml: the param limit is a number, not True             |
+      | r     | {id: r, version: 1, severity: info, summary: s, lookback_minutes: 5, query: q, params: {limit: ten}}    | r.yaml: the param limit is a finite number above 0, not ten |
+      | r     | {id: r, version: 1, severity: info, summary: s, lookback_minutes: 5, query: q, params: {limit: true}}   | r.yaml: the param limit is a finite number above 0, not True |
+      | r     | {id: r, version: 1, severity: info, summary: s, lookback_minutes: 5, query: 'SELECT {{param:limit}}', params: {limit: .nan}} | r.yaml: the param limit is a finite number above 0, not nan |
+      | r     | {id: r, version: 1, severity: info, summary: s, lookback_minutes: 5, query: 'SELECT {{param:limit}}', params: {limit: .inf}} | r.yaml: the param limit is a finite number above 0, not inf |
+      | r     | {id: r, version: 1, severity: info, summary: s, lookback_minutes: 5, query: 'SELECT {{param:limit}}', params: {limit: -.inf}} | r.yaml: the param limit is a finite number above 0, not -inf |
+      | r     | {id: r, version: 1, severity: info, summary: s, lookback_minutes: 5, query: 'SELECT {{param:limit}}', params: {limit: 0}} | r.yaml: the param limit is a finite number above 0, not 0 |
+      | r     | {id: r, version: 1, severity: info, summary: s, lookback_minutes: 5, query: 'SELECT {{param:limit}}', params: {limit: -1}} | r.yaml: the param limit is a finite number above 0, not -1 |
 
   Scenario: A rule's params fill its query, and a trend's threshold may be one of them
     When a rule file "r" reads "{id: r, version: 1, severity: info, summary: s, lookback_minutes: 5, query: 'SELECT {{param:limit}} AS a, {{param:share}} AS b', params: {limit: 10, share: 0.25}, trend: {label: l, threshold: limit, query: 'SELECT {{param:share}} AS value'}}"
