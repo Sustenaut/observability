@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from observability import __version__, config, facts, senders
+from observability import __version__, config, facts, senders, thresholds
 
 # The variable that names Google's credential file (its path, never a value).
 GOOGLE_FILE = "OBSERVABILITY_GOOGLE_CREDENTIAL_FILE"
@@ -38,7 +38,13 @@ def main(argv: list[str] | None = None, *, transport: Any = None, storage_token:
     evaluating = commands.add_parser(
         "evaluate", help="run every rule, and print the signals starting and ending now as JSON lines")
     evaluating.add_argument("--now", help="the moment to evaluate, in ISO 8601 (default: now)")
+    checking = commands.add_parser(
+        "thresholds", help=f"check ${thresholds.VARIABLE} against the rules")
+    checking.add_argument("--check", action="store_true", required=True,
+                          help="check only: exit 2 with the reason when it would be refused")
     args = parser.parse_args(argv)
+    if args.command == "thresholds":
+        return check_thresholds()
     if args.command == "rules":
         from observability import rules  # noqa: PLC0415 - needs PyYAML
 
@@ -75,6 +81,22 @@ def main(argv: list[str] | None = None, *, transport: Any = None, storage_token:
     return 0
 
 
+def check_thresholds() -> int:
+    """Whether OBSERVABILITY_THRESHOLDS is one the evaluator would start with: 0 when
+    it is, 2 with the reason when it isn't."""
+    from observability import rules  # noqa: PLC0415 - needs PyYAML
+
+    text = os.environ.get(thresholds.VARIABLE, "")
+    try:
+        found = thresholds.parse(text, rules.load())
+    except ValueError as error:
+        print(f"observability: {error}", file=sys.stderr)
+        return 2
+    print(f"{thresholds.VARIABLE}: overrides for {', '.join(found)}" if found
+          else f"{thresholds.VARIABLE}: no overrides, every rule as its file says")
+    return 0
+
+
 def credential(path: str) -> dict:
     """Google's credential for BigQuery, from the file at `path`: an external_account
     credential (Workload Identity, google-credential.yaml) or a service account's key."""
@@ -104,6 +126,7 @@ def evaluate(when: str | None, transport: Any, storage_token: Any = None) -> int
     if not datasets:
         raise ValueError(f"no dataset: set {config.VARIABLE}")
     expected = senders.parse(os.environ.get(senders.VARIABLE, ""), datasets)
+    every = thresholds.effective(os.environ.get(thresholds.VARIABLE, ""), rules.load())
     caller = Caller("Sustenaut/observability", "evaluator", transport=transport)
     warehouse = Warehouse(caller, credential(os.environ.get(GOOGLE_FILE, "")))
     url = os.environ.get(STORAGE, "")
@@ -117,7 +140,7 @@ def evaluate(when: str | None, transport: Any, storage_token: Any = None) -> int
     except IntegrationError as error:
         # Without them every breach would start again, so nothing is evaluated.
         raise ValueError(f"could not read the open signals: {error}") from None
-    outcome = evaluator.evaluate(list(rules.load().values()), warehouse.query, datasets, senders.always(expected),
+    outcome = evaluator.evaluate(list(every.values()), warehouse.query, datasets, senders.always(expected),
                                  opened, now)
     for signal in outcome.signals:
         print(json.dumps(signal.record(), sort_keys=True))

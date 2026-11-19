@@ -150,21 +150,68 @@ every other column is the signal's evidence. It reads `{{fact:<id>}}` (every
 dataset's rows, from its lookback on), and may use `{{now}}`,
 `{{projects}}` and `{{always_senders}}`.
 
-| Rule | Severity | Finds |
-|---|---|---|
-| `sender_silent` | critical | an always-on sender with no report for more than 6 minutes |
-| `ingest_silent` | critical | a project the ingest pod has reported nothing for in more than 6 minutes |
-| `storage_unreachable` | critical | storage not answering the ingest pod's latest cycle |
-| `storage_failures` | warning | a sender failing to write to storage in the last 6 minutes |
-| `drops` | warning | a sender dropping call records in the last 6 minutes |
-| `inbox_stale` | warning | a file waiting more than 10 minutes in a project's inbox |
-| `rejected_files` | warning | files in a project's buffer that couldn't load |
-| `load_jobs_near_limit` | warning | more than 1,200 of the 1,400 load jobs a table used today |
-| `plugin_errors` | warning | more than 5% of an app's calls to a plugin failing over 30 minutes, out of at least 20 |
-| `slow_pages` | warning | a warm sender answering slower than 5 seconds in the last 6 minutes |
-| `cold_start_share` | info | the share of a sender's answering windows in the last day that began cold |
-| `need_drift` | warning | a deploy service's need the latest walk found drifted, or missing or blocked after a ready walk in the last 30 days; it ends when a walk finds it ready (an `unknown` need, one the walk couldn't check, is not drift) |
-| `pubrules_drift` | warning | a repository on the release board whose latest nightly check (`platform.pubrules_checks`) failed: it pins an older pubrules than the latest release, or main fails `pubrules sync --check`; the post gives the fix, and the next night's pass ends it. The nightly records passes too, so the table is the night-by-night record for audits |
+A rule may have `params`: its thresholds, each a name (lowercase letters and
+underscores) and a number, its default. The query reads one as
+`{{param:<name>}}`, which becomes the number, and a `trend`'s `threshold` may be a
+number or a param's name. The loader refuses a `{{param:<name>}}` the rule doesn't
+declare, a param it declares and never uses, and any other `{{...}}` it doesn't know.
+
+```yaml
+params:
+  silent_minutes: 10
+query: |
+  ... WHERE seen.last_seen < TIMESTAMP_SUB({{now}},
+                INTERVAL CAST({{param:silent_minutes}} * 60 AS INT64) SECOND)
+```
+
+| Rule | Severity | Params (defaults) | Finds |
+|---|---|---|---|
+| `sender_silent` | critical | `silent_minutes: 10` | an always-on sender with no report for more than `silent_minutes`, or never seen; one signal a sender |
+| `ingest_silent` | critical | `silent_minutes: 15` | the ingest pod having reported nothing for one or more projects for more than `silent_minutes`: one signal, subject `ingest`, whose evidence lists the silent `projects` (comma-separated) and the `oldest_last_seen` |
+| `storage_unreachable` | critical | `failed_cycles: 3`, `window_cycles: 5` | storage failing the ingest pod in `failed_cycles` or more of its newest `window_cycles` cycles (two-minute buckets, across every project: a cycle failed when any project's did): one signal, subject `storage`, whose evidence has the `failed` count, the `cycles` judged, the failing `projects`, the `latest_failure` and its `problems` |
+| `storage_errors` | warning | | storage not answering the ingest pod for a project in its latest cycle, one signal a project |
+| `storage_failures` | warning | | a sender failing to write to storage in the last 6 minutes |
+| `drops` | warning | | a sender dropping call records in the last 6 minutes |
+| `inbox_stale` | warning | | a file waiting more than 10 minutes in a project's inbox |
+| `rejected_files` | warning | | files in a project's buffer that couldn't load |
+| `load_jobs_near_limit` | warning | | more than 1,200 of the 1,400 load jobs a table used today |
+| `plugin_errors` | warning | | more than 5% of an app's calls to a plugin failing over 30 minutes, out of at least 20 |
+| `slow_pages` | warning | | a warm sender answering slower than 5 seconds in the last 6 minutes |
+| `cold_start_share` | info | | the share of a sender's answering windows in the last day that began cold |
+| `need_drift` | warning | | a deploy service's need the latest walk found drifted, or missing or blocked after a ready walk in the last 30 days; it ends when a walk finds it ready (an `unknown` need, one the walk couldn't check, is not drift) |
+| `pubrules_drift` | warning | | a repository on the release board whose latest nightly check (`platform.pubrules_checks`) failed: it pins an older pubrules than the latest release, or main fails `pubrules sync --check`; the post gives the fix, and the next night's pass ends it. The nightly records passes too, so the table is the night-by-night record for audits |
+
+**Thresholds** are configuration too: `OBSERVABILITY_THRESHOLDS`, YAML or JSON, a
+versioned block that gives a rule's params other numbers and may give it another
+severity. A rule or param it leaves out keeps the rule file's default, and empty or
+unset every rule runs as its file says. It names only rules there are and params they
+have, each value a finite number above 0 and a severity `critical`, `warning` or `info`; anything else,
+or a version other than 1, is refused, and the evaluator (and the page) won't start.
+
+```yaml
+version: 1
+rules:
+  ingest_silent:
+    silent_minutes: 20
+  storage_unreachable:
+    failed_cycles: 4
+    window_cycles: 6
+    severity: warning
+```
+
+`storage_unreachable`'s 20-minute lookback holds about 9 two-minute buckets, so a
+`window_cycles` above about 9 also needs a longer `lookback_minutes` in its rule file.
+
+`bin/observability thresholds --check` checks `OBSERVABILITY_THRESHOLDS` from the
+environment as the evaluator would, and exits 2 with the reason it would refuse it.
+release-state's CI checks a file holding the block with
+`OBSERVABILITY_THRESHOLDS="$(cat <file>)" observability thresholds --check`.
+
+Each signal a rule with params starts records the ones it ran with in its evidence, as
+`thresholds` (`{"silent_minutes": 10}`), so its history says which threshold applied
+when they change. The signal's page charts the trend against the effective threshold
+and lists the rule's thresholds as they are now, and the trends page calls a sender
+silent after `sender_silent`'s effective `silent_minutes`.
 
 **Senders** are configuration: `OBSERVABILITY_SENDERS` maps each project to
 its sender prefixes, each `always` (silence is a fault) or `on-demand` (it
@@ -190,6 +237,7 @@ of its signals, because not knowing isn't all clear, and the run then exits
 |---|---|
 | `OBSERVABILITY_DATASETS` | the call log datasets to read |
 | `OBSERVABILITY_SENDERS` | the senders each project should have (above) |
+| `OBSERVABILITY_THRESHOLDS` | other thresholds and severities for the rules (above; optional) |
 | `OBSERVABILITY_GOOGLE_CREDENTIAL_FILE` | the Google credential's file: in the cluster, `k8s/google-credential.yaml`'s external_account credential, so the pod acts as `observability-reader` through Workload Identity with no key; a service account's key file works too |
 | `OBSERVABILITY_STORAGE_URL` | storage's address, to write the signals there (optional) |
 
@@ -219,7 +267,8 @@ sign-in: plain HTML from the server, with no script, never cached. It shows:
   `call_rollups` (calls to outside services only, not request totals).
 - **Senders**: every sender and ingest pod seen in the last day, and every one
   `OBSERVABILITY_SENDERS` expects, with its last report and its state: reporting, on
-  demand, or silent (an always-on sender quiet for more than 6 minutes).
+  demand, or silent (an always-on sender quiet for more than `sender_silent`'s
+  `silent_minutes`, 10 unless `OBSERVABILITY_THRESHOLDS` says otherwise).
 - **Page times**: the newest 30 two-minute windows of each sender that answered
   requests, with their quickest, median and slowest answers, and cold starts marked.
 
@@ -281,15 +330,16 @@ for storage and no Kubernetes API token.
 `.github/workflows/deploy.yml` builds the image (`Dockerfile`, from the hash-locked
 `evaluator-requirements.lock`) on each merge to main and applies `k8s/` with pubrules's
 `k8s-deploy.yml`, once `DEPLOY_OBSERVABILITY` is `on`. Its settings are the
-repository variables `OBSERVABILITY_DATASETS` (the call log datasets, comma-separated)
-and `OBSERVABILITY_SENDERS` (YAML or JSON, above), which become the ConfigMap
-`evaluator-settings`. They aren't secrets, so they aren't in Bitwarden: `pubrules.json`'s
+repository variables `OBSERVABILITY_DATASETS` (the call log datasets, comma-separated),
+`OBSERVABILITY_SENDERS` and `OBSERVABILITY_THRESHOLDS` (YAML or JSON, above), which
+become the ConfigMap `evaluator-settings`. They aren't secrets, so they aren't in Bitwarden: `pubrules.json`'s
 `variables` block names them, and the owner's state repository keeps their values and
 sets them (`pubfleet variables --apply`, which then runs the deploy). By hand:
 
 ```sh
 gh variable set OBSERVABILITY_DATASETS -R Sustenaut/observability --body 'calls_example,calls_other'
 gh variable set OBSERVABILITY_SENDERS -R Sustenaut/observability --body '{"example": {"app": "always"}}'
+gh variable set OBSERVABILITY_THRESHOLDS -R Sustenaut/observability --body '{"version": 1, "rules": {}}'
 ```
 
 pubrules.json's `deploy` block lists everything else it needs, and pubrules's deploy walk
@@ -333,7 +383,9 @@ Some needs it only checks, and says what a person does:
   write (`k8s:observability/evaluator`), and integrations' `INGEST_SIGNALS`, whose
   `tenant` is `signals`, so the ingest pod loads what the evaluator writes. When one is
   missing, the fix is the entry to add, in storage, or in the owner's state file.
-- **The variables** `OBSERVABILITY_DATASETS` and `OBSERVABILITY_SENDERS`, which must be set.
+- **The variables** `OBSERVABILITY_DATASETS`, `OBSERVABILITY_SENDERS` and
+  `OBSERVABILITY_THRESHOLDS`, which must be set: the walk counts an empty variable as
+  missing, so with no overrides `OBSERVABILITY_THRESHOLDS` is `{"version": 1, "rules": {}}`.
 - **storage itself** (`upstream`) and the site's DNS record, from shared-infra's zone.
 
 `./pubdeploy walk` without `--fulfil` (or `pubdeploy check`) changes nothing, and

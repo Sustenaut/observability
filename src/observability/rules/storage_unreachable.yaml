@@ -1,14 +1,42 @@
 id: storage_unreachable
-version: 1
+version: 2
 severity: critical
-summary: Storage did not answer the ingest pod in its latest cycle.
-lookback_minutes: 10
+summary: Storage failed the ingest pod in failed_cycles or more of its latest window_cycles cycles (3 of 5 by default).
+# One subject, storage. A cycle is one two-minute bucket of the ingest pod's, across
+# every project: it failed when storage failed any project's. The newest
+# window_cycles of them are judged, so a single failure is storage_errors' alone,
+# and this ends once enough newer cycles pass. The lookback holds the window at its
+# default with room for a missed cycle. Version 2 made it one subject (version 1
+# had one per project, on the latest cycle alone) and its thresholds params.
+params:
+  failed_cycles: 3
+  window_cycles: 5
+lookback_minutes: 20
 query: |
-  WITH windows AS (
-    SELECT *, ROW_NUMBER() OVER (PARTITION BY project ORDER BY bucket DESC) AS newest
+  WITH ingest AS (
+    SELECT project, bucket, storage_ok, problems
     FROM {{fact:sender_windows}}
     WHERE kind = 'ingest'
+  ),
+  cycles AS (
+    SELECT bucket, ROW_NUMBER() OVER (ORDER BY bucket DESC) AS newest
+    FROM ingest
+    GROUP BY bucket
+  ),
+  failing AS (
+    SELECT ingest.project, ingest.bucket, ingest.problems
+    FROM ingest
+    JOIN cycles ON cycles.bucket = ingest.bucket
+    WHERE cycles.newest <= {{param:window_cycles}} AND ingest.storage_ok = FALSE
   )
-  SELECT project AS subject, bucket, problems
-  FROM windows
-  WHERE newest = 1 AND storage_ok = FALSE
+  SELECT
+    'storage' AS subject,
+    COUNT(DISTINCT bucket) AS failed,
+    (SELECT COUNT(*) FROM cycles WHERE newest <= {{param:window_cycles}}) AS cycles,
+    STRING_AGG(DISTINCT project, ',' ORDER BY project) AS projects,
+    MAX(bucket) AS latest_failure,
+    (SELECT STRING_AGG(DISTINCT problems, '; ' ORDER BY problems)
+     FROM failing
+     WHERE bucket = (SELECT MAX(bucket) FROM failing)) AS problems
+  FROM failing
+  HAVING COUNT(DISTINCT bucket) >= {{param:failed_cycles}}

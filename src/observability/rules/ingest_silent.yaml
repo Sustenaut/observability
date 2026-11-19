@@ -1,7 +1,12 @@
 id: ingest_silent
-version: 1
+version: 2
 severity: critical
-summary: The ingest pod has reported nothing for a project for more than 6 minutes.
+summary: The ingest pod has reported nothing for one or more projects for more than its silent_minutes (15 by default).
+# One subject, ingest, however many projects are silent: the pod is one, and one
+# that stops stops for every project at once, so one signal says it. Version 2 made
+# it one subject (version 1 had one per project) and its threshold a param.
+params:
+  silent_minutes: 15
 lookback_minutes: 60
 query: |
   WITH seen AS (
@@ -9,8 +14,17 @@ query: |
     FROM {{fact:sender_windows}}
     WHERE kind = 'ingest'
     GROUP BY project
+  ),
+  silent AS (
+    SELECT projects.project, seen.last_seen
+    FROM {{projects}} AS projects
+    LEFT JOIN seen ON seen.project = projects.project
+    WHERE seen.last_seen IS NULL
+      OR seen.last_seen < TIMESTAMP_SUB({{now}}, INTERVAL CAST({{param:silent_minutes}} * 60 AS INT64) SECOND)
   )
-  SELECT projects.project AS subject, seen.last_seen
-  FROM {{projects}} AS projects
-  LEFT JOIN seen ON seen.project = projects.project
-  WHERE seen.last_seen IS NULL OR seen.last_seen < TIMESTAMP_SUB({{now}}, INTERVAL 6 MINUTE)
+  SELECT
+    'ingest' AS subject,
+    STRING_AGG(project, ',' ORDER BY project) AS projects,
+    MIN(last_seen) AS oldest_last_seen
+  FROM silent
+  HAVING COUNT(*) > 0

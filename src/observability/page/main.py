@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import os
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
-from observability import config, senders
+from observability import config, senders, thresholds
 from observability.page.app import create_app
 from observability.page.queries import signal, trends
 
@@ -21,9 +21,10 @@ def build():  # pragma: no cover - the pod's wiring, with its real credential
     warehouse = Warehouse(Caller("Sustenaut/observability", "page"), credential(os.environ[GOOGLE_FILE]))
     from observability import rules
 
-    every = rules.load()
+    every = thresholds.effective(os.environ.get(thresholds.VARIABLE, ""), rules.load())
+    silent = timedelta(minutes=every["sender_silent"].params["silent_minutes"])
     return create_app(
-        lambda: trends(warehouse.query, datasets, expected, datetime.now(timezone.utc)),
+        lambda: trends(warehouse.query, datasets, expected, datetime.now(timezone.utc), silent),
         lambda rule_id, subject, started: signal(warehouse.query, datasets, every, rule_id, subject, started,
                                                  datetime.now(timezone.utc)))
 

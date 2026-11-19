@@ -4,8 +4,8 @@
 # sustenaut-deploy.
 #
 # What a deployment reads is in repository variables, so nothing here names a
-# consumer: OBSERVABILITY_DATASETS and OBSERVABILITY_SENDERS, which pubrules.json
-# declares. Their values are kept in the owner's state repository: a change there
+# consumer: OBSERVABILITY_DATASETS, OBSERVABILITY_SENDERS and OBSERVABILITY_THRESHOLDS,
+# which pubrules.json declares. Their values are kept in the owner's state repository: a change there
 # sets them with `pubfleet variables --apply` and runs this workflow. It deploys only once
 # DEPLOY_OBSERVABILITY is "on", which the deploy walk sets once every need before
 # it is ready. Without SUSTENAUT_SERVER the image is built and pushed,
@@ -39,5 +39,6 @@ jobs:
         var() { jq -r --arg name "$1" '.[$name] // ""' <<<"$VARS"; }
         kustomize edit add configmap evaluator-settings \
           --from-literal="OBSERVABILITY_DATASETS=$(var OBSERVABILITY_DATASETS)" \
-          --from-literal="OBSERVABILITY_SENDERS=$(var OBSERVABILITY_SENDERS)"
+          --from-literal="OBSERVABILITY_SENDERS=$(var OBSERVABILITY_SENDERS)" \
+          --from-literal="OBSERVABILITY_THRESHOLDS=$(var OBSERVABILITY_THRESHOLDS)"
     secrets: inherit

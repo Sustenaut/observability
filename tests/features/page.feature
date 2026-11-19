@@ -154,6 +154,7 @@ Feature: The trends page
     When I GET "/signals/storage_unreachable/20261101T102000Z/example"
     Then the answer includes "This rule has no trend to chart yet."
     And the answer includes "Windows of the ingest pod"
+    And the answer includes "Its thresholds now: failed_cycles 3, window_cycles 5."
 
   Scenario: A subject on a signal's page is shown, never run
     Given the open signal "drops" for "<b>x</b>" since 10:20

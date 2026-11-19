@@ -1,7 +1,10 @@
 id: sender_silent
-version: 1
+version: 2
 severity: critical
-summary: An always-on sender has sent no report for more than 6 minutes.
+summary: An always-on sender has sent no report for more than its silent_minutes (10 by default).
+# Version 2 made its threshold a param, and its default 10 minutes, not 6.
+params:
+  silent_minutes: 10
 lookback_minutes: 60
 query: |
   WITH seen AS (
@@ -18,4 +21,5 @@ query: |
   FROM {{always_senders}} AS expected
   LEFT JOIN seen
     ON seen.project = expected.project AND seen.sender_prefix = expected.sender_prefix
-  WHERE seen.last_seen IS NULL OR seen.last_seen < TIMESTAMP_SUB({{now}}, INTERVAL 6 MINUTE)
+  WHERE seen.last_seen IS NULL
+    OR seen.last_seen < TIMESTAMP_SUB({{now}}, INTERVAL CAST({{param:silent_minutes}} * 60 AS INT64) SECOND)
