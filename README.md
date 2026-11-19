@@ -202,8 +202,10 @@ rules:
 `storage_unreachable`'s 20-minute lookback holds about 9 two-minute buckets, so a
 `window_cycles` above about 9 also needs a longer `lookback_minutes` in its rule file.
 
-`bin/observability thresholds --check` checks `OBSERVABILITY_THRESHOLDS`, or a file
-given after it, as the evaluator would, and exits 2 with the reason it would refuse it.
+`bin/observability thresholds --check` checks `OBSERVABILITY_THRESHOLDS` from the
+environment as the evaluator would, and exits 2 with the reason it would refuse it.
+release-state's CI checks a file holding the block with
+`OBSERVABILITY_THRESHOLDS="$(cat <file>)" observability thresholds --check`.
 
 Each signal a rule with params starts records the ones it ran with in its evidence, as
 `thresholds` (`{"silent_minutes": 10}`), so its history says which threshold applied
