@@ -1,4 +1,0 @@
-{
-  "category": "changed",
-  "change": "Calmer critical rules, each version 2 with its thresholds as params: ingest_silent is one subject, ingest, after 15 minutes without a cycle for any project (evidence: projects, oldest_last_seen); sender_silent waits 10 minutes, not 6; storage_unreachable is one subject, storage, when storage failed 3 or more of the ingest pod's latest 5 cycles. The single-cycle check is the new warning rule storage_errors"
-}
