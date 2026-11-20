@@ -194,6 +194,7 @@ Feature: Rules over the facts
       | cold_start_share     |
       | need_drift           |
       | pubrules_drift         |
+      | uptime_down          |
 
   Scenario: A need that left ready is drift until a walk finds it ready again
     Given the convergence engine's walks found
@@ -236,6 +237,61 @@ Feature: Rules over the facts
       | subject                | check | status | pinned | latest | fix                                             | run_url                  |
       | Sustenaut/pubhost/pin  | pin   | fail   | 0.35.1 | 0.37.0 | `git latest && ./pubrules bump`, then open its PR |                          |
       | Sustenaut/ui/sync      | sync  | fail   | 0.37.0 | 0.37.0 | `git latest && ./pubrules sync`, then open its PR | https://github.com/run/9 |
+
+  Scenario: A site whose latest two probes failed is down, and one that answers again is not
+    Given the uptime probe recorded
+      | at    | target | up    | detail             |
+      | 10:10 | web    | true  |                    |
+      | 10:15 | web    | false | HTTP 503, not 200  |
+      | 10:20 | web    | false | no answer: timed out |
+      | 10:10 | api    | false |                    |
+      | 10:15 | api    | false |                    |
+      | 10:20 | api    | true  |                    |
+      | 10:15 | docs   | true  |                    |
+      | 10:20 | docs   | false |                    |
+      | 10:20 | new    | false |                    |
+    When the rule "uptime_down" runs at 10:22
+    Then the result is:
+      | subject | url                     | detail               | failing_since       |
+      | web     | https://web.test/healthz | no answer: timed out | 10:15         |
+
+  Scenario: Three failed runs in a row, when the thresholds ask for three
+    Given the uptime probe recorded
+      | at    | target | up    |
+      | 10:10 | web    | true  |
+      | 10:15 | web    | false |
+      | 10:20 | web    | false |
+      | 10:05 | api    | false |
+      | 10:10 | api    | false |
+      | 10:15 | api    | false |
+    And the thresholds are "{version: 1, rules: {uptime_down: {failed_runs: 3}}}"
+    When the rule "uptime_down" runs at 10:22
+    Then the result is:
+      | subject |
+      | api     |
+
+  Scenario: A probe that records nothing for more than 15 minutes is silent
+    Given the uptime probe recorded
+      | at    | target | up   |
+      | 10:00 | web    | true |
+      | 10:05 | web    | true |
+    When the rule "uptime_silent" runs at 10:21
+    Then the result is:
+      | subject | last_probed_at      |
+      | uptime  | 10:05          |
+
+  Scenario: A probe that recorded within 15 minutes is not silent
+    Given the uptime probe recorded
+      | at    | target | up    |
+      | 10:10 | web    | false |
+    When the rule "uptime_silent" runs at 10:21
+    Then the result is empty
+
+  Scenario: A probe never seen is silent
+    When the rule "uptime_silent" runs at 10:21
+    Then the result is:
+      | subject | last_probed_at |
+      | uptime  |                |
 
   Scenario: No night, no drift
     Given the nightly checks found

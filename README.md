@@ -25,6 +25,7 @@ to the query it came from.
 | `call_rollups` | `calls` | scope, app, plugin, operation and two-minute bucket |
 | `need_states` | `convergence.need_states` | deploy service need and walk |
 | `pubrules_checks` | `platform.pubrules_checks` | repository, check and night |
+| `uptime_probes` | `observability.uptime_probes` | target and run of the uptime probe |
 
 - **`sender_windows`** names a sender by its prefix, the pod or Cloud Run
   revision name without its generated suffix, since that suffix changes with
@@ -66,33 +67,79 @@ sqlglot, so CI needs no BigQuery; `tests/schemas/` holds the call log's
 columns.
 ## Uptime
 
-`.github/workflows/uptime.yml` probes each site every five minutes from
-GitHub Actions, off the server it watches, so it still reports when that
-server is down. Every other part of observability reads what services
-report; this is the one check that doesn't depend on them.
+The uptime probe (`observability.uptime`) requests each site's health URL from
+outside the server it watches, so it still reports when that server is down. Every
+other part of observability reads what services report; this is the one check that
+doesn't depend on them.
 
 - **Targets** are the repository variable `UPTIME_TARGETS`, a JSON list of
-  `{"name", "url", "expect_status", "channel"}`. `expect_status` defaults
-  to 200. `channel`, a channel's or a person's id, says where that target's
-  alerts go; without it they go to the default, `UPTIME_SLACK_CHANNEL`. A
-  redirect is compared, not followed, so a site behind sign-in can be
-  probed by the redirect it answers with. No target is named here, and
-  with the variable unset the workflow does nothing.
-- **Down** means two runs in a row failed: no answer within 10 s, or a
-  status other than the one expected, each run trying a failing target
-  twice. The state between runs, each target's failures in a row, is a
-  small file, `uptime-state.json` in the working directory, kept in
-  the Actions cache. If the cache is lost, the next run starts afresh.
-- **Alerts:** going down and recovering are posted by the Sustenaut Slack
-  bot (`SUSTENAUT_SLACK_BOT_TOKEN`, `chat.postMessage`), one post per
-  channel: each target's own, or the default `UPTIME_SLACK_CHANNEL`. Slack answers 200 even to a post it refuses, so the probe reads
-  its `ok` and fails the run with Slack's reason. Every other Slack post
-  goes through the integrations service, but that service runs on the
-  server being watched, so this one is made directly, as release-state's
-  failure notice is. Without the token nothing is posted, and without the default nothing is
-  posted for the targets that have no channel of their own.
-  A run fails while any target is down, so GitHub's failed-run email is
-  the backup.
+  `{"name", "url", "expect_status", "channel"}`. `expect_status` defaults to 200. A
+  redirect is compared, not followed, so a site behind sign-in can be probed by the
+  redirect it answers with. No target is named here. Each run tries every target at
+  once, and a failing one a second time after 5 s, each try waiting 10 s at most.
+- **Where it runs:** the Cloud Run job `observability-uptime`, which Cloud Scheduler
+  starts every five minutes (Sustenaut/shared-infra's `infra/uptime.tf`), off the k3s
+  server. It replaces `.github/workflows/uptime.yml`, whose five-minute cron GitHub
+  ran 51 times in 13 days; that workflow stays, posting as below, until the job has
+  proven itself, and then goes.
+
+### Recording, on Cloud Run
+
+With `UPTIME_TABLE` set (`project.dataset.table`), each run appends one row per
+target to that BigQuery table, `observability.uptime_probes`, up or not: when, the
+run (`execution`, Cloud Run's `CLOUD_RUN_EXECUTION`), the target and its URL, whether
+it was up, the status it answered and the one expected, what the last try found, how
+many tries and how long the last took. It keeps no state and posts nothing. The rows
+are the fact `uptime_probes`, and the rules decide:
+
+- `uptime_down` (critical): a target whose newest `failed_runs` probes (2) all failed;
+  the next run it answers ends it.
+- `uptime_silent` (critical): no row for more than `silent_minutes` (15), three runs
+  missed.
+
+The notifier posts them, routed by `NOTIFIER_ROUTES` (a target's subject is its name),
+as every other signal: a target's `channel` is the old path's alone.
+
+The job reaches BigQuery as `observability-uptime`, the account attached to it: the
+metadata server gives its token, so there is no key. That account may only stream rows
+into that one table (a custom role with `bigquery.tables.updateData` and no BigQuery
+jobs), so it can't load, change or delete a row: the table is the record of every
+site's answers. A run in which any target failed exits 1. Since the evaluator and
+the notifier run on the server the probe watches, Google's own alert is the backup
+while it is down: two failed runs in ten minutes, or none for half an hour, emails the
+team (shared-infra's `infra/uptime.tf`).
+
+`deploy.yml`'s `uptime` job sets the job's image (the one just built, through
+shared-infra's `ghcr` remote repository, as Cloud Run pulls only from Artifact Registry),
+its command and its settings, `UPTIME_TARGETS` and `UPTIME_TABLE`, as
+`observability-uptime-deploy` through the GitHub Workload Identity pool, which only main
+may ask. It needs the repository variable `UPTIME_CLOUD_RUN`, the JSON
+`terraform -chdir=infra output -raw uptime_cloud_run` prints in shared-infra: the
+project, region, job, image, table, pool provider and account. Like the targets, it
+is kept in the owner's state repository (`pubfleet variables --apply` sets it and
+runs the deploy). Until it is set, the job runs Google's sample job.
+
+```sh
+UPTIME_TABLE=example.observability.uptime_probes \
+  UPTIME_TARGETS='[{"name": "example", "url": "https://example.test/healthz"}]' \
+  PYTHONPATH=src python3 -m observability.uptime
+```
+
+### Posting, from GitHub Actions
+
+Without `UPTIME_TABLE`, as `.github/workflows/uptime.yml` runs it:
+
+- **Down** means two runs in a row failed. The state between runs, each target's
+  failures in a row, is a small file, `uptime-state.json` in the working directory,
+  kept in the Actions cache. If the cache is lost, the next run starts afresh.
+- **Alerts:** going down and recovering are posted by the Sustenaut Slack bot
+  (`SUSTENAUT_SLACK_BOT_TOKEN`, `chat.postMessage`), one post per channel: each
+  target's `channel` (a channel's or a person's id), or the default
+  `UPTIME_SLACK_CHANNEL`. Slack answers 200 even to a post it refuses, so the probe
+  reads its `ok` and fails the run with Slack's reason. Without the token nothing is
+  posted, and without the default nothing is posted for the targets that have no
+  channel of their own. A run fails while any target is down, so GitHub's failed-run
+  email is the backup.
 
 ```sh
 UPTIME_TARGETS='[{"name": "example", "url": "https://example.test/healthz"}]' \
@@ -111,10 +158,8 @@ it as `slack-bot-token`, and `pubrules.json`'s `secrets` list sends it here as
 The channel and the targets aren't secrets: they are the repository variables
 `UPTIME_SLACK_CHANNEL` and `UPTIME_TARGETS`, which `pubrules.json`'s `variables` block
 declares and the owner's state repository keeps (`pubfleet variables --apply` sets
-them). To change the targets, change them there. The Bitwarden entries
-`uptime-slack-channel` and `uptime-targets`, which used to send them, can be deleted
-once the state repository tracks them. The bot must be in each channel it posts
-to; a direct message needs nothing more.
+them). To change the targets, change them there. The bot must be in each channel it
+posts to; a direct message needs nothing more.
 
 GitHub turns off a public repository's scheduled workflows after 60 days
 without activity in it. If it does, re-enable the workflow from the
@@ -180,6 +225,8 @@ query: |
 | `cold_start_share` | info | | the share of a sender's answering windows in the last day that began cold |
 | `need_drift` | warning | | a deploy service's need the latest walk found drifted, or missing or blocked after a ready walk in the last 30 days; it ends when a walk finds it ready (an `unknown` need, one the walk couldn't check, is not drift) |
 | `pubrules_drift` | warning | | a repository on the release board whose latest nightly check (`platform.pubrules_checks`) failed: it pins an older pubrules than the latest release, or main fails `pubrules sync --check`; the post gives the fix, and the next night's pass ends it. The nightly records passes too, so the table is the night-by-night record for audits |
+| `uptime_down` | critical | `failed_runs: 2` | a target whose newest `failed_runs` uptime probes all failed (`uptime_probes`); one signal a target, ended by the next run it answers |
+| `uptime_silent` | critical | `silent_minutes: 15` | the uptime probe having recorded nothing for more than `silent_minutes`, or never: one signal, subject `uptime` |
 
 **Thresholds** are configuration too: `OBSERVABILITY_THRESHOLDS`, YAML or JSON, a
 versioned block that gives a rule's params other numbers and may give it another

@@ -57,6 +57,8 @@ class Warehouse:
         self.need_states([])
         # And the platform's pubrules checks, likewise.
         self.pubrules_checks([])
+        # And the uptime probe's rows.
+        self.uptime_probes([])
 
     def load(self, dataset: str, fixture: str) -> None:
         self.hold(dataset, json.loads((HERE / "fixtures" / f"{fixture}.json").read_text()), fixture)
@@ -79,14 +81,19 @@ class Warehouse:
                 values = [full.get(name) for name in names]
                 self.db.execute(f"INSERT INTO {dataset}.{table} VALUES ({', '.join('?' * len(names))})", values)
 
-    def signals(self, rows: list[dict]) -> None:
-        """observability.signals, holding these rows."""
+    def _observability(self) -> None:
         if "observability" not in self.made:
             self.db.execute("CREATE SCHEMA observability")
+            self.made.add("observability")
+
+    def signals(self, rows: list[dict]) -> None:
+        """observability.signals, holding these rows."""
+        self._observability()
+        if "observability.signals" not in self.made:
             self.db.execute("CREATE TABLE observability.signals (rule_id VARCHAR, rule_version VARCHAR, subject VARCHAR,"
                             " severity VARCHAR, started_at TIMESTAMP, ended_at TIMESTAMP, evidence JSON,"
                             " emitted_at TIMESTAMP)")
-            self.made.add("observability")
+            self.made.add("observability.signals")
         for row in rows:
             self.db.execute("INSERT INTO observability.signals VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                             [row["rule_id"], row.get("rule_version", "1"), row["subject"], row.get("severity", "warning"),
@@ -122,6 +129,23 @@ class Warehouse:
             full = {"observed_at": at, "pinned": "", "latest": "", "main_commit": "", "run_url": "", "fix": "",
                     "run_started_at": at, **{k: v for k, v in row.items() if k != "night"}}
             self.db.execute(f"INSERT INTO platform.pubrules_checks VALUES ({', '.join('?' * len(names))})",
+                            [full[n] for n in names])
+
+    def uptime_probes(self, rows: list[dict]) -> None:
+        """observability.uptime_probes, holding these rows: a probe's time as the fixtures' clock."""
+        self._observability()
+        if "observability.uptime_probes" not in self.made:
+            columns = ", ".join(f'"{c["name"]}" {TYPES[c["type"]]}' for c in schema("uptime_probes"))
+            self.db.execute(f"CREATE TABLE observability.uptime_probes ({columns})")
+            self.made.add("observability.uptime_probes")
+        names = [c["name"] for c in schema("uptime_probes")]
+        for n, row in enumerate(rows):
+            up = row["up"] == "true"
+            full = {"probed_at": moment(row["at"]), "execution": f"run-{n}", "url": f"https://{row['target']}.test/healthz",
+                    "status": 200 if up else 503, "expect_status": 200, "detail": "HTTP 200" if up else "HTTP 503, not 200",
+                    "attempts": 1 if up else 2, "elapsed_ms": 40, **{k: v for k, v in row.items() if k not in ("at", "up")},
+                    "up": up}
+            self.db.execute(f"INSERT INTO observability.uptime_probes VALUES ({', '.join('?' * len(names))})",
                             [full[n] for n in names])
 
     def typed(self, bigquery_sql: str) -> tuple[list[tuple[str, str]], list[tuple]]:

@@ -1,0 +1,29 @@
+id: uptime_down
+version: 1
+severity: critical
+summary: A site whose latest failed_runs uptime probes (2 by default) all failed, each run trying it twice.
+# The probe records every run, up or not, so a target's newest rows say how it stands:
+# its newest failed_runs all failing opens a signal, and the next run it answers ends
+# it. Fewer rows than failed_runs is not down yet. The probe runs every five minutes,
+# so an hour holds twelve runs; a target taken out of UPTIME_TARGETS has no new rows,
+# and its signal ends when its last ones pass out of the lookback.
+params:
+  failed_runs: 2
+lookback_minutes: 60
+query: |
+  WITH newest AS (
+    SELECT
+      *,
+      ROW_NUMBER() OVER (PARTITION BY target ORDER BY probed_at DESC) AS n
+    FROM {{fact:uptime_probes}}
+  )
+  SELECT
+    target AS subject,
+    ANY_VALUE(url) AS url,
+    MAX_BY(detail, probed_at) AS detail,
+    MIN(probed_at) AS failing_since
+  FROM newest
+  WHERE n <= CAST({{param:failed_runs}} AS INT64)
+  GROUP BY target
+  HAVING COUNT(*) = CAST({{param:failed_runs}} AS INT64)
+    AND COUNTIF(up) = 0

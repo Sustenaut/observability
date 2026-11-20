@@ -1,0 +1,4 @@
+{
+  "category": "added",
+  "change": "The uptime probe records: with UPTIME_TABLE set, as the Cloud Run job observability-uptime that Cloud Scheduler starts every five minutes, each run appends one row per target, up or not, to BigQuery's observability.uptime_probes as the job's attached account (no key), keeps no state and posts nothing, and exits 1 when any target failed; the new fact uptime_probes reads them, and the rules uptime_down (critical: a target's newest failed_runs probes, 2 by default, all failed) and uptime_silent (critical: no probe row for silent_minutes, 15 by default) go to Slack through the notifier; deploy.yml sets the job's image and settings once UPTIME_CLOUD_RUN is set; targets are probed all at once"
+}

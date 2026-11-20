@@ -1,0 +1,62 @@
+[
+  {
+    "name": "probed_at",
+    "type": "TIMESTAMP",
+    "mode": "REQUIRED",
+    "description": "When the probe's last request to the target ended"
+  },
+  {
+    "name": "execution",
+    "type": "STRING",
+    "mode": "REQUIRED",
+    "description": "The run that probed it: the Cloud Run job's execution, so every target probed in one run shares it"
+  },
+  {
+    "name": "target",
+    "type": "STRING",
+    "mode": "REQUIRED",
+    "description": "The target's name, as UPTIME_TARGETS lists it"
+  },
+  {
+    "name": "url",
+    "type": "STRING",
+    "mode": "REQUIRED",
+    "description": "The URL requested"
+  },
+  {
+    "name": "up",
+    "type": "BOOLEAN",
+    "mode": "REQUIRED",
+    "description": "Whether it answered with the status expected, on the first try or the second"
+  },
+  {
+    "name": "status",
+    "type": "INTEGER",
+    "mode": "NULLABLE",
+    "description": "The HTTP status of the last answer; empty when there was none"
+  },
+  {
+    "name": "expect_status",
+    "type": "INTEGER",
+    "mode": "REQUIRED",
+    "description": "The status it should answer with"
+  },
+  {
+    "name": "detail",
+    "type": "STRING",
+    "mode": "REQUIRED",
+    "description": "What the last try found, such as HTTP 503, not 200, or no answer: timed out"
+  },
+  {
+    "name": "attempts",
+    "type": "INTEGER",
+    "mode": "REQUIRED",
+    "description": "Requests made: 1, or 2 when the first failed"
+  },
+  {
+    "name": "elapsed_ms",
+    "type": "INTEGER",
+    "mode": "REQUIRED",
+    "description": "How long the last try took, in milliseconds"
+  }
+]
