@@ -1,0 +1,17 @@
+id: uptime_silent
+version: 1
+severity: critical
+summary: The uptime probe has recorded nothing for more than its silent_minutes (15 by default), so no site's answers are known.
+# One subject, uptime: the probe is one Cloud Run job, which Cloud Scheduler starts
+# every five minutes, so fifteen minutes is three runs missed. With no row in the
+# lookback it is silent too, as an always-on sender never seen is.
+params:
+  silent_minutes: 15
+lookback_minutes: 60
+query: |
+  SELECT
+    'uptime' AS subject,
+    MAX(probed_at) AS last_probed_at
+  FROM {{fact:uptime_probes}}
+  HAVING MAX(probed_at) IS NULL
+    OR MAX(probed_at) < TIMESTAMP_SUB({{now}}, INTERVAL CAST({{param:silent_minutes}} * 60 AS INT64) SECOND)

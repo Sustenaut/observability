@@ -149,6 +149,11 @@ def google(warehouse: Warehouse) -> Google:
     return Google(warehouse)
 
 
+@given(parsers.parse('the uptime probe found "{target}" up at {clock}'))
+def probe_found(warehouse: Warehouse, target: str, clock: str) -> None:
+    warehouse.uptime_probes([{"at": f"{clock}:00", "target": target, "up": "true"}])
+
+
 @given(parsers.parse('the dataset "{dataset}" holds "{fixture}"'))
 def holds(warehouse: Warehouse, dataset: str, fixture: str) -> None:
     warehouse.load(dataset, fixture)

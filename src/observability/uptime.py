@@ -1,11 +1,22 @@
 """The uptime probe: whether each site answers, seen from outside its server.
 
-It runs on GitHub Actions every five minutes (.github/workflows/uptime.yml),
-off the server it watches, so it still reports when that server is down.
-A target is down only after two runs in a row have failed, and each run
-tries a failing target twice before counting it. The run's state, each
-target's failures in a row and whether it is down, is kept between runs in
-uptime-state.json in the working directory, which the workflow caches.
+It runs off the server it watches, so it still reports when that server is
+down, and tries a failing target twice before counting it. It runs one of
+two ways:
+
+- **Recording**, with UPTIME_TABLE set (project.dataset.table): as the Cloud
+  Run job observability-uptime, which Cloud Scheduler starts every five
+  minutes. Each run appends one row per target to that BigQuery table, up or
+  not, and keeps no state: the rules uptime_down and uptime_silent read the
+  rows, and the notifier posts what they find. It reaches BigQuery as the
+  account attached to the job, whose token the metadata server gives, so
+  there is no key. A run in which any target failed exits 1, which Google's
+  backup alert counts (shared-infra's infra/uptime.tf).
+- **Posting**, without it: on GitHub Actions (.github/workflows/uptime.yml),
+  until the recording path has proven itself. A target is down only after
+  two runs in a row have failed. The run's state, each target's failures in
+  a row and whether it is down, is kept between runs in uptime-state.json in
+  the working directory, which the workflow caches.
 
 Which sites are probed is configuration, never in this repository:
 UPTIME_TARGETS is a JSON list of {"name", "url", "expect_status",
@@ -13,7 +24,7 @@ UPTIME_TARGETS is a JSON list of {"name", "url", "expect_status",
 (SUSTENAUT_SLACK_BOT_TOKEN) to the target's channel, or, for a target with
 none, to UPTIME_SLACK_CHANNEL; each is a channel's or a person's id. It
 posts directly: the integrations service, which posts for everything
-else, runs on the server being watched.
+else, runs on the server being watched. Recording posts nothing.
 
     python -m observability.uptime
 """
@@ -27,8 +38,12 @@ import sys
 import time
 import urllib.error
 import urllib.request
+import uuid
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
+from urllib.parse import quote
 
 TARGETS = "UPTIME_TARGETS"
 # The environment variable that holds the bot's credential (its name, not the value).
@@ -43,6 +58,16 @@ KEYS = {"name", "url", "expect_status", "channel"}
 # Runs in a row that must fail before a target is down.
 DOWN_AFTER = 2
 USER_AGENT = "Sustenaut observability uptime probe"
+# Recording: the table rows go to, as project.dataset.table.
+TABLE = "UPTIME_TABLE"
+INSERT_ALL = "https://bigquery.googleapis.com/bigquery/v2/projects/{}/datasets/{}/tables/{}/insertAll"
+# The token of the account attached to the Cloud Run job.
+METADATA_TOKEN = "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token"
+# The suite points these at local stand-ins.
+BIGQUERY_API = "UPTIME_BIGQUERY_API"
+TOKEN_API = "UPTIME_TOKEN_API"
+# The run, as Cloud Run names it; every target probed in it shares it.
+EXECUTION = "CLOUD_RUN_EXECUTION"
 
 
 @dataclass(frozen=True)
@@ -59,6 +84,12 @@ class Result:
     target: Target
     up: bool
     detail: str
+    # The last answer's HTTP status; None when there was none.
+    status: int | None = None
+    attempts: int = 1
+    elapsed_ms: int = 0
+    # When the last try ended.
+    at: datetime | None = None
 
 
 class _NoRedirects(urllib.request.HTTPRedirectHandler):
@@ -101,6 +132,12 @@ def targets(text: str) -> list[Target]:
 def attempt(target: Target, timeout: float) -> Result:
     """One request: up when the target answers with the status it should."""
     request = urllib.request.Request(target.url, headers={"User-Agent": USER_AGENT})
+    started = time.monotonic()
+
+    def result(up: bool, detail: str, status: int | None) -> Result:
+        return Result(target, up, detail, status, 1, round((time.monotonic() - started) * 1000),
+                      datetime.now(timezone.utc))
+
     try:
         with _OPENER.open(request, timeout=timeout) as response:
             status = response.status
@@ -108,10 +145,10 @@ def attempt(target: Target, timeout: float) -> Result:
         status = error.code
     except (urllib.error.URLError, OSError) as error:
         reason = getattr(error, "reason", error)
-        return Result(target, False, f"no answer: {reason}")
+        return result(False, f"no answer: {reason}", None)
     if status != target.expect_status:
-        return Result(target, False, f"HTTP {status}, not {target.expect_status}")
-    return Result(target, True, f"HTTP {status}")
+        return result(False, f"HTTP {status}, not {target.expect_status}", status)
+    return result(True, f"HTTP {status}", status)
 
 
 def probe(target: Target, timeout: float, pause: float) -> Result:
@@ -119,8 +156,89 @@ def probe(target: Target, timeout: float, pause: float) -> Result:
     result = attempt(target, timeout)
     if not result.up:
         time.sleep(pause)
-        result = attempt(target, timeout)
+        again = attempt(target, timeout)
+        result = Result(again.target, again.up, again.detail, again.status, 2, again.elapsed_ms, again.at)
     return result
+
+
+def probe_all(listed: list[Target], timeout: float, pause: float) -> list[Result]:
+    """Every target's answer, all at once, so a run takes as long as its slowest
+    target, not the sum of them; in the order listed."""
+    with ThreadPoolExecutor(max_workers=min(16, len(listed))) as pool:
+        return list(pool.map(lambda target: probe(target, timeout, pause), listed))
+
+
+def row(result: Result, execution: str) -> dict:
+    """The table's row for one result (shared-infra's schemas/observability/uptime_probes.json)."""
+    t = result.target
+    return {"probed_at": (result.at or datetime.now(timezone.utc)).isoformat(), "execution": execution,
+            "target": t.name, "url": t.url, "up": result.up, "status": result.status,
+            "expect_status": t.expect_status, "detail": result.detail, "attempts": result.attempts,
+            "elapsed_ms": result.elapsed_ms}
+
+
+def table_parts(text: str) -> tuple[str, str, str]:
+    """UPTIME_TABLE's project, dataset and table."""
+    parts = text.split(".")
+    if len(parts) != 3 or not all(part.replace("-", "").replace("_", "").isalnum() for part in parts):
+        raise ValueError(f"{TABLE} is project.dataset.table, not {text!r}")
+    return parts[0], parts[1], parts[2]
+
+
+def access_token(timeout: float) -> str:
+    """The attached account's token, from the metadata server: no key anywhere."""
+    request = urllib.request.Request(os.environ.get(TOKEN_API, METADATA_TOKEN),
+                                     headers={"Metadata-Flavor": "Google", "User-Agent": USER_AGENT})
+    with _OPENER.open(request, timeout=timeout) as response:
+        token = json.loads(response.read() or b"{}").get("access_token")
+    if not isinstance(token, str) or not token:
+        raise OSError("the metadata server gave no access token")
+    return token
+
+
+def record(table: tuple[str, str, str], rows: list[dict], timeout: float) -> None:
+    """Append the rows (tabledata.insertAll). Each row's insertId is its run and
+    target, so a request BigQuery took but didn't answer, sent again, is one
+    row. BigQuery answers 200 with insertErrors for rows it refused, so the
+    answer is read, not just its status."""
+    url = os.environ.get(BIGQUERY_API, "").rstrip("/")
+    url = (f"{url}/projects/{quote(table[0])}/datasets/{quote(table[1])}/tables/{quote(table[2])}/insertAll"
+           if url else INSERT_ALL.format(*(quote(part) for part in table)))
+    body = json.dumps({"skipInvalidRows": False, "ignoreUnknownValues": False,
+                       "rows": [{"insertId": f"{r['execution']}/{r['target']}", "json": r} for r in rows]}).encode()
+    request = urllib.request.Request(
+        url, data=body, method="POST",
+        headers={"Authorization": f"Bearer {access_token(timeout)}", "Content-Type": "application/json",
+                 "User-Agent": USER_AGENT})
+    with _OPENER.open(request, timeout=timeout) as response:
+        answer = json.loads(response.read() or b"{}")
+    errors = answer.get("insertErrors") or []
+    if errors:
+        reasons = sorted({e.get("reason", "?") for entry in errors for e in entry.get("errors", [])})
+        raise OSError(f"BigQuery refused {len(errors)} of {len(rows)} rows: {', '.join(reasons) or 'no reason given'}")
+
+
+def recording(table_text: str, listed: list[Target], args: argparse.Namespace) -> int:
+    """One recorded run: every target probed, every result appended."""
+    try:
+        table = table_parts(table_text)
+    except ValueError as error:
+        print(f"uptime: {error}", file=sys.stderr)
+        return 2
+    results = probe_all(listed, args.timeout, args.pause)
+    execution = os.environ.get(EXECUTION) or f"local-{uuid.uuid4().hex}"
+    for result in results:
+        print(f"{'up' if result.up else 'failing'}\t{result.target.name}\t{result.detail}")
+    try:
+        record(table, [row(result, execution) for result in results], args.timeout)
+    except (urllib.error.URLError, OSError, ValueError) as error:
+        print(f"uptime: recording to {table_text} failed: {error}", file=sys.stderr)
+        return 1
+    print(f"uptime: recorded {len(results)} targets in {table_text}")
+    failing = [result.target.name for result in results if not result.up]
+    if failing:
+        print(f"uptime: failing: {', '.join(failing)}", file=sys.stderr)
+    return 1 if failing else 0
 
 
 def advance(state: dict, results: list[Result]) -> tuple[dict, list[tuple[str, Result]]]:
@@ -198,7 +316,9 @@ def main(argv: list[str] | None = None) -> int:
     except ValueError as error:
         print(f"uptime: {error}", file=sys.stderr)
         return 2
-    results = [probe(target, args.timeout, args.pause) for target in listed]
+    if os.environ.get(TABLE):
+        return recording(os.environ[TABLE], listed, args)
+    results = probe_all(listed, args.timeout, args.pause)
     state, changes = advance(read_state(STATE), results)
     STATE.write_text(json.dumps(state, indent=1, sort_keys=True) + "\n")
     for result in results:

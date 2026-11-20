@@ -5,6 +5,9 @@
 # UPTIME_SLACK_CHANNEL variable's channel, and a run fails while any target
 # is down, so GitHub's failure email is the backup.
 # The state between runs is a small file in the Actions cache.
+# The Cloud Run job observability-uptime (shared-infra's infra/uptime.tf) replaces it,
+# recording every run in BigQuery for observability's rules; this workflow goes once
+# that path has proven itself.
 name: uptime
 
 on:

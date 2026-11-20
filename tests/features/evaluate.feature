@@ -169,7 +169,7 @@ Feature: The evaluator
     Given the environment sets "OBSERVABILITY_STORAGE_URL" to "https://storage.example.test"
     When the evaluator runs at 10:30
     Then it succeeds
-    And one file of 10 signals is written to inbox/signals/2026-11-01/
+    And one file of 11 signals is written to inbox/signals/2026-11-01/
 
   Scenario: A start written but not loaded yet is open, so it isn't written again
     Given the environment sets "OBSERVABILITY_STORAGE_URL" to "https://storage.example.test"
@@ -204,6 +204,7 @@ Feature: The evaluator
     And the dataset "calls_fine" holds "healthy"
     And the environment sets "OBSERVABILITY_DATASETS" to "calls_fine"
     And the environment sets "OBSERVABILITY_SENDERS" to "fine: {app: always}"
+    And the uptime probe found "web" up at 10:25
     When the evaluator runs at 10:30
     Then it succeeds
     And nothing is written to the tenant

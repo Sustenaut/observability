@@ -10,6 +10,7 @@
     {
       "plugin": "github.actions-oidc",
       "paths": [
+        ".github/workflows/deploy.yml",
         ".github/workflows/service-needs.yml"
       ],
       "mode": "required"
@@ -42,13 +43,15 @@
     {
       "plugin": "google.bigquery",
       "paths": [
-        "src/observability/bigquery.py"
+        "src/observability/bigquery.py",
+        "src/observability/uptime.py"
       ],
       "mode": "required"
     },
     {
       "plugin": "google.cloud",
       "paths": [
+        ".github/workflows/deploy.yml",
         "k8s/google-credential.yaml"
       ],
       "mode": "required"
@@ -97,7 +100,7 @@
   "exclude": [
     {
       "path": "tests/steps/test_uptime.py",
-      "reason": "A local stand-in for Slack's chat.postMessage that the suite posts to"
+      "reason": "Local stand-ins for Slack's chat.postMessage, BigQuery's insertAll and the metadata server's token, which the suite's probe calls"
     },
     {
       "path": "tests/steps/test_evaluate.py",

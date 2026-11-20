@@ -45,6 +45,12 @@ def checks_found(warehouse: Warehouse, datatable: list[list[str]]) -> None:
     warehouse.pubrules_checks([dict(zip(columns, row)) for row in rows])
 
 
+@given("the uptime probe recorded")
+def probes_recorded(warehouse: Warehouse, datatable: list[list[str]]) -> None:
+    columns, *rows = datatable
+    warehouse.uptime_probes([{c: v for c, v in zip(columns, row) if v} for row in rows])
+
+
 @given("the convergence engine's walks found")
 def walks_found(warehouse: Warehouse, datatable: list[list[str]]) -> None:
     columns, *rows = datatable
