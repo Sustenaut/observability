@@ -88,15 +88,19 @@ class Outcome:
 
 
 def evaluate(rules: list[Rule], query: Callable[[str], list[dict[str, Any]]], datasets: list[Dataset],
-             always: list[tuple[str, str]], opened: list[Signal], now: datetime) -> Outcome:
-    """The signals to write now: those starting, and those ending."""
+             always: list[tuple[str, str]], opened: list[Signal], now: datetime,
+             expected: list[tuple[str, str, str, float]] | None = None,
+             windows: list[tuple[str, float]] | None = None) -> Outcome:
+    """The signals to write now: those starting, and those ending. `expected` and
+    `windows` are the senders with their tiers' silences, and each project's
+    (observability.senders)."""
     still_open = {signal.key: signal for signal in opened}
     out: list[Signal] = []
     failed: dict[str, str] = {}
     known = {rule.id for rule in rules}
     for rule in rules:
         try:
-            rows = query(rule.sql(datasets, always, now))
+            rows = query(rule.sql(datasets, always, now, expected, windows))
         except Exception as error:  # noqa: BLE001 - one rule failing doesn't stop the rest
             failed[rule.id] = str(error) or type(error).__name__
             continue

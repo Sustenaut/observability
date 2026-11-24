@@ -22,7 +22,8 @@ def build():  # pragma: no cover - the pod's wiring, with its real credential
     from observability import rules
 
     every = thresholds.effective(os.environ.get(thresholds.VARIABLE, ""), rules.load())
-    silent = timedelta(minutes=every["sender_silent"].params["silent_minutes"])
+    silent = {tier: timedelta(minutes=numbers["silent_minutes"])
+              for tier, numbers in thresholds.tiers(os.environ.get(thresholds.VARIABLE, "")).items()}
     return create_app(
         lambda: trends(warehouse.query, datasets, expected, datetime.now(timezone.utc), silent),
         lambda rule_id, subject, started: signal(warehouse.query, datasets, every, rule_id, subject, started,

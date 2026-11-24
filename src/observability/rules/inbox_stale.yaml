@@ -1,13 +1,17 @@
 id: inbox_stale
-version: 1
+version: 2
 severity: warning
-summary: A file has waited more than 10 minutes in a project's inbox.
-lookback_minutes: 10
+summary: A file has waited more than 10 minutes in a project's inbox, by the newest sweep.
+# Version 2 reads the newest of the ingest pod's reports that listed the inbox (a
+# sweep's: a pass on the files storage told of lists nothing, and leaves
+# waiting_more empty). A file a sweep finds that old is one no notice brought, or
+# one the pod could not load. Its lookback holds a sweep that comes only every few hours.
+lookback_minutes: 600
 query: |
   WITH windows AS (
     SELECT *, ROW_NUMBER() OVER (PARTITION BY project ORDER BY bucket DESC) AS newest
     FROM {{fact:sender_windows}}
-    WHERE kind = 'ingest'
+    WHERE kind = 'ingest' AND waiting_more IS NOT NULL
   )
   SELECT project AS subject, bucket, waiting_files, waiting_oldest_seconds
   FROM windows

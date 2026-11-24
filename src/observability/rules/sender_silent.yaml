@@ -1,11 +1,12 @@
 id: sender_silent
-version: 2
+version: 3
 severity: critical
-summary: An always-on sender has sent no report for more than its silent_minutes (10 by default).
-# Version 2 made its threshold a param, and its default 10 minutes, not 6.
-params:
-  silent_minutes: 10
-lookback_minutes: 60
+summary: An expected sender has sent no report for longer than its tier's silent_minutes.
+# Version 2 made its threshold a param, and its default 10 minutes, not 6. Version 3
+# reads each sender's silence from its tier (OBSERVABILITY_SENDERS, and the tiers of
+# OBSERVABILITY_THRESHOLDS): ten minutes for tight and cycle senders, nine hours for
+# idle ones, which report alone only every eight. Its lookback holds the longest.
+lookback_minutes: 600
 query: |
   WITH seen AS (
     SELECT project, sender_prefix, MAX(last_cycle_end) AS last_seen
@@ -17,9 +18,11 @@ query: |
     CONCAT(expected.project, '/', expected.sender_prefix) AS subject,
     expected.project,
     expected.sender_prefix,
+    expected.tier,
+    CAST(expected.silent_minutes AS FLOAT64) AS silent_minutes,
     seen.last_seen
-  FROM {{always_senders}} AS expected
+  FROM {{expected_senders}} AS expected
   LEFT JOIN seen
     ON seen.project = expected.project AND seen.sender_prefix = expected.sender_prefix
   WHERE seen.last_seen IS NULL
-    OR seen.last_seen < TIMESTAMP_SUB({{now}}, INTERVAL CAST({{param:silent_minutes}} * 60 AS INT64) SECOND)
+    OR seen.last_seen < TIMESTAMP_SUB({{now}}, INTERVAL CAST(CAST(expected.silent_minutes AS FLOAT64) * 60 AS INT64) SECOND)

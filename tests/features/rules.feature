@@ -32,7 +32,7 @@ Feature: Rules over the facts
       | at       | storage_ok |
       | 10:00:00 | true       |
       | <last>   | true       |
-    And the senders are "{}"
+    And the senders are "slow: {app: tight}"
     When the rule "ingest_silent" runs at 10:30 over "calls_slow"
     Then the result is empty
 
@@ -51,7 +51,7 @@ Feature: Rules over the facts
     And the ingest pod's cycles for "calls_busy" were
       | at       | storage_ok |
       | 10:29:00 | true       |
-    And the senders are "{}"
+    And the senders are "{slow: {app: tight}, quiet: {app: always}, busy: {app: tight}}"
     When the rule "ingest_silent" runs at 10:30 over "calls_slow" and "calls_quiet" and "calls_busy"
     Then the result is:
       | subject | projects   | oldest_last_seen |
@@ -62,9 +62,60 @@ Feature: Rules over the facts
       | at       | storage_ok |
       | 10:14:00 | true       |
     And the thresholds are "{version: 1, rules: {ingest_silent: {silent_minutes: 20}}}"
-    And the senders are "{}"
+    And the senders are "slow: {app: tight}"
     When the rule "ingest_silent" runs at 10:30 over "calls_slow"
     Then the result is empty
+
+  Scenario: A project with only idle senders gives the ingest pod nine hours and its margin
+    Given the ingest pod's cycles for "calls_slow" were
+      | at       | storage_ok |
+      | 01:30:00 | true       |
+    And the ingest pod's cycles for "calls_quiet" were
+      | at       | storage_ok |
+      | 01:20:00 | true       |
+    And the senders are "{slow: {worker: idle}, quiet: {worker: idle}}"
+    When the rule "ingest_silent" runs at 10:30 over "calls_slow" and "calls_quiet"
+    Then the result is:
+      | subject | projects | oldest_last_seen |
+      | ingest  | quiet    | 01:20            |
+
+  Scenario: A project's quickest sender sets its window
+    Given the ingest pod's cycles for "calls_slow" were
+      | at       | storage_ok |
+      | 10:00:00 | true       |
+    And the senders are "slow: {worker: idle, app: tight}"
+    When the rule "ingest_silent" runs at 10:30 over "calls_slow"
+    Then the result is:
+      | subject | projects |
+      | ingest  | slow     |
+
+  Scenario: A project with no expected sender has the longest window, as only sweeps report on it
+    Given the ingest pod's cycles for "calls_slow" were
+      | at       | storage_ok |
+      | 02:00:00 | true       |
+    And the senders are "slow: {plan: on-demand}"
+    When the rule "ingest_silent" runs at 10:30 over "calls_slow"
+    Then the result is empty
+
+  Scenario: An idle sender is silent only after nine hours
+    Given the senders are "example: {app: idle, web: idle}"
+    When the rule "sender_silent" runs at 10:30
+    Then the result is empty
+
+  Scenario: A tight sender and a cycle sender are silent after ten minutes, and say their tier
+    Given the senders are "example: {app: tight, web: cycle}"
+    When the rule "sender_silent" runs at 10:30
+    Then the result is:
+      | subject     | tier  | silent_minutes | last_seen |
+      | example/web | cycle | 10.0           | 10:10     |
+
+  Scenario: A tier's silence set in OBSERVABILITY_THRESHOLDS is the one sender_silent uses
+    Given the senders are "example: {app: tight, web: idle}"
+    And the thresholds are "{version: 2, tiers: {idle: {heartbeat_seconds: 600, silent_minutes: 15}}}"
+    When the rule "sender_silent" runs at 10:30
+    Then the result is:
+      | subject     | tier | last_seen |
+      | example/web | idle | 10:10     |
 
   Scenario: Storage failing one project's latest cycle is storage_errors' alone
     When the rule "storage_errors" runs at 10:30
@@ -129,6 +180,36 @@ Feature: Rules over the facts
     Then the result is:
       | subject | waiting_files | waiting_oldest_seconds |
       | example | 4             | 900                    |
+
+  Scenario: A stale file is the newest sweep's, which a later pass on notified files doesn't hide
+    Given the ingest pod's cycles for "calls_a" were
+      | at       | storage_ok | inbox_files | inbox_oldest_seconds | inbox_more |
+      | 10:20:10 | true       | 2           | 1800                 | false      |
+      | 10:28:10 | true       | 0           |                      |            |
+    And the senders are "{a: {app: tight}}"
+    When the rule "inbox_stale" runs at 10:30 over "calls_a"
+    Then the result is:
+      | subject | bucket | waiting_files | waiting_oldest_seconds |
+      | a       | 10:20  | 2             | 1800                   |
+
+  Scenario: A pass on notified files is no sweep, however long its files have waited
+    Given the ingest pod's cycles for "calls_a" were
+      | at       | storage_ok | inbox_files | inbox_oldest_seconds |
+      | 10:28:10 | true       | 3           | 900                  |
+    And the senders are "{a: {app: tight}}"
+    When the rule "inbox_stale" runs at 10:30 over "calls_a"
+    Then the result is empty
+
+  Scenario: Rejected files are the newest listing's, hours ago if the sweeps are hours apart
+    Given the ingest pod's cycles for "calls_a" were
+      | at       | storage_ok | rejected_files | rejected_oldest_seconds |
+      | 03:00:10 | true       | 1              | 60                      |
+      | 10:28:10 | true       |                |                         |
+    And the senders are "{a: {app: tight}}"
+    When the rule "rejected_files" runs at 10:30 over "calls_a"
+    Then the result is:
+      | subject | bucket | rejected_files |
+      | a       | 03:00  | 1              |
 
   Scenario: Files that could not load
     When the rule "rejected_files" runs at 10:30
@@ -355,6 +436,6 @@ Feature: Rules over the facts
   Scenario: The rules are listed with their versions and severities
     When the rules are listed
     Then it succeeds
-    And it prints "sender_silent	version 2	critical"
+    And it prints "sender_silent	version 3	critical"
     And it prints "storage_errors	version 1	warning"
     And it prints "cold_start_share	version 1	info"

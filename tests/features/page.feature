@@ -27,6 +27,17 @@ Feature: The trends page
       | example | sender | plan    | on-demand | 10:00     | 1                 | false  |
       | example | sender | web     | always    | 10:10     | 1                 | true   |
 
+  Scenario: A sender is silent on the page after its tier's silence
+    Given the senders are "example: {app: tight, web: idle, plan: on-demand, missing: idle}"
+    When the page's senders are read at 10:30
+    Then the result is:
+      | project | kind   | prefix  | expected  | last_seen | windows_last_hour | silent |
+      | example | ingest | ingest  |           | 10:28     | 2                 | false  |
+      | example | sender | app     | tight     | 10:28     | 2                 | false  |
+      | example | sender | missing | idle      |           | 0                 | true   |
+      | example | sender | plan    | on-demand | 10:00     | 1                 | false  |
+      | example | sender | web     | idle      | 10:10     | 1                 | false  |
+
   Scenario: Page times by window, newest first, with cold starts marked
     When the page times of "example/app" are read at 10:30
     Then the result is:

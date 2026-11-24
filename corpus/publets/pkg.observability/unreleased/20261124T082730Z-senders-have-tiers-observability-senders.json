@@ -1,0 +1,4 @@
+{
+  "category": "added",
+  "change": "Senders have tiers: OBSERVABILITY_SENDERS takes tight, idle and cycle (always is cycle's old name), and OBSERVABILITY_THRESHOLDS version 2 their numbers (deadline_seconds, heartbeat_seconds, silent_minutes; tight 30/300/10, idle 28800/28800/540, cycle 120/120/10); sender_silent (version 3) and the trends page call a sender silent after its tier's silent_minutes, and ingest_silent (version 3) gives each project its quickest sender's window and a margin_minutes"
+}
