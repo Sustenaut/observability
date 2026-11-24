@@ -27,13 +27,13 @@ may go unseen before sender_silent says so. The senders read the first two as
 CALL_LOG_DEADLINE_SECONDS and CALL_LOG_HEARTBEAT_SECONDS (integrations'
 StorageSink); here they are only checked, and the owner's state repository
 holds each repository's to the tier its senders have. A tier's silence is at
-least a heartbeat and five minutes, so a sender that reports on time is never
+least a heartbeat and LOAD_MINUTES, so a sender that reports on time is never
 called silent. A tier or number it leaves out keeps TIERS'.
 
 Version 1 had no tiers. It is read as version 2 by the chained transformers
-(TRANSFORMS, upgrade): sender_silent's silent_minutes becomes the tight and
-cycle tiers' silent_minutes, and ingest_silent's silent_minutes becomes its
-margin_minutes past them. `observability thresholds --upgrade` prints a block
+(TRANSFORMS, upgrade): sender_silent's silent_minutes becomes the cycle
+tier's silent_minutes (every version 1 sender reported every two minutes), and
+ingest_silent's silent_minutes becomes its margin_minutes past it. `observability thresholds --upgrade` prints a block
 at the latest version, for the state repository to keep.
 """
 
@@ -48,20 +48,27 @@ VARIABLE = "OBSERVABILITY_THRESHOLDS"
 VERSIONS = (1, 2)
 LATEST = VERSIONS[-1]
 KEYS = {1: {"version", "rules"}, 2: {"version", "tiers", "rules"}}
-# The tiers and their numbers when the block gives none.
+# The tiers and their numbers when the block gives none: the one place they are set
+# here (release-state's state.json writes them out too). Tight's heartbeat and silence
+# are a pick among 300 s / 15 min, 180 s / 10 min and 900 s / 22 min.
 TIERS: dict[str, dict[str, float]] = {
-    "tight": {"deadline_seconds": 30, "heartbeat_seconds": 300, "silent_minutes": 10},
+    "tight": {"deadline_seconds": 30, "heartbeat_seconds": 300, "silent_minutes": 15},
     "idle": {"deadline_seconds": 28800, "heartbeat_seconds": 28800, "silent_minutes": 540},
     "cycle": {"deadline_seconds": 120, "heartbeat_seconds": 120, "silent_minutes": 10},
 }
 TIER_KEYS = ("deadline_seconds", "heartbeat_seconds", "silent_minutes")
-# Past a heartbeat, the time a sender's file takes to reach BigQuery, at most.
-LOAD_MINUTES = 5
+# Past a heartbeat, the most a sender's report takes to be seen by sender_silent, in
+# minutes: the ingest pod's wait for more notices (5 s) and its batch gap (120 s), the
+# load into BigQuery (about 60 s), and the evaluator's cycle (120 s): about 305 s, with
+# room for a slow load. A silence shorter than a heartbeat and this would call a sender
+# that reports on time silent between two of its reports.
+LOAD_MINUTES = 7
 
 
 def _v1_to_v2(data: dict[str, Any]) -> dict[str, Any]:
     """Version 1 to 2: the silences sender_silent and ingest_silent had as params
-    move to the tiers, and to ingest_silent's margin past them."""
+    move to the cycle tier, every version 1 sender's, and to ingest_silent's margin
+    past it."""
     found = data.get("rules")
     rules = {k: dict(v) if isinstance(v, dict) else v for k, v in found.items()} if isinstance(found, dict) else found
     tiers: dict[str, dict[str, Any]] = {}
@@ -69,7 +76,7 @@ def _v1_to_v2(data: dict[str, Any]) -> dict[str, Any]:
         sender = rules.get("sender_silent")
         if isinstance(sender, dict) and "silent_minutes" in sender:
             minutes = sender.pop("silent_minutes")
-            tiers = {"tight": {"silent_minutes": minutes}, "cycle": {"silent_minutes": minutes}}
+            tiers = {"cycle": {"silent_minutes": minutes}}
             if not sender:
                 del rules["sender_silent"]
         ingest = rules.get("ingest_silent")

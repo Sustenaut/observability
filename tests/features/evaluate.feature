@@ -33,7 +33,7 @@ Feature: The evaluator
     When the evaluator runs at 10:30
     Then it starts "sender_silent" for "example/web" with "tier" "cycle"
 
-  Scenario: OBSERVABILITY_THRESHOLDS version 1's silence for sender_silent becomes the tiers', and its severity stays the rule's
+  Scenario: OBSERVABILITY_THRESHOLDS version 1's silence for sender_silent becomes the cycle tier's, and its severity stays the rule's
     Given the environment sets "OBSERVABILITY_THRESHOLDS" to "{"version": 1, "rules": {"sender_silent": {"silent_minutes": 15, "severity": "warning"}}}"
     When the evaluator runs at 10:30
     Then it succeeds
@@ -156,21 +156,22 @@ Feature: The evaluator
       | OBSERVABILITY_THRESHOLDS   | {version: 2, tiers: {idle: 5}}                                 | the tier idle maps each of deadline_seconds, heartbeat_seconds, silent_minutes to a number |
       | OBSERVABILITY_THRESHOLDS   | {version: 2, tiers: {idle: {minutes: 5}}}                      | the tier idle has deadline_seconds, heartbeat_seconds, silent_minutes, not minutes |
       | OBSERVABILITY_THRESHOLDS   | {version: 2, tiers: {idle: {silent_minutes: 0}}}               | the tier idle's silent_minutes is a finite number above 0, not 0 |
-      | OBSERVABILITY_THRESHOLDS   | {version: 2, tiers: {idle: {silent_minutes: 480}}}             | the tier idle's silent_minutes is at least its heartbeat and 5 minutes (485), not 480 |
-      | OBSERVABILITY_THRESHOLDS   | {version: 2, tiers: {tight: {heartbeat_seconds: 900}}}         | the tier tight's silent_minutes is at least its heartbeat and 5 minutes (20), not 10 |
+      | OBSERVABILITY_THRESHOLDS   | {version: 2, tiers: {idle: {silent_minutes: 480}}}             | the tier idle's silent_minutes is at least its heartbeat and 7 minutes (487), not 480 |
+      | OBSERVABILITY_THRESHOLDS   | {version: 2, tiers: {tight: {heartbeat_seconds: 900}}}         | the tier tight's silent_minutes is at least its heartbeat and 7 minutes (22), not 15 |
+      | OBSERVABILITY_THRESHOLDS   | {version: 2, tiers: {tight: {heartbeat_seconds: 300, silent_minutes: 10}}} | the tier tight's silent_minutes is at least its heartbeat and 7 minutes (12), not 10 |
       | OBSERVABILITY_THRESHOLDS   | {version: 1, rules: [sender_silent]}                           | OBSERVABILITY_THRESHOLDS: rules maps each rule to its thresholds |
       | OBSERVABILITY_THRESHOLDS   | {version: 1, rules: {quiet: {silent_minutes: 5}}}              | OBSERVABILITY_THRESHOLDS names the rule quiet, which there is not |
       | OBSERVABILITY_THRESHOLDS   | {version: 1, rules: {sender_silent: 5}}                        | OBSERVABILITY_THRESHOLDS: sender_silent maps each of its params to a number |
       | OBSERVABILITY_THRESHOLDS   | {version: 1, rules: {sender_silent: {minutes: 5}}}             | sender_silent has no param minutes; it has no params |
       | OBSERVABILITY_THRESHOLDS   | {version: 1, rules: {ingest_silent: {minutes: 5}}}             | ingest_silent has no param minutes; its params are margin_minutes |
       | OBSERVABILITY_THRESHOLDS   | {version: 1, rules: {drops: {limit: 5}}}                       | drops has no param limit; it has no params |
-      | OBSERVABILITY_THRESHOLDS   | {version: 1, rules: {sender_silent: {silent_minutes: soon}}}   | the tier tight's silent_minutes is a finite number above 0, not soon |
-      | OBSERVABILITY_THRESHOLDS   | {version: 1, rules: {sender_silent: {silent_minutes: false}}}  | the tier tight's silent_minutes is a finite number above 0, not False |
-      | OBSERVABILITY_THRESHOLDS   | {version: 1, rules: {sender_silent: {silent_minutes: .nan}}} | the tier tight's silent_minutes is a finite number above 0, not nan |
-      | OBSERVABILITY_THRESHOLDS   | {version: 1, rules: {sender_silent: {silent_minutes: .inf}}} | the tier tight's silent_minutes is a finite number above 0, not inf |
-      | OBSERVABILITY_THRESHOLDS   | {version: 1, rules: {sender_silent: {silent_minutes: -.inf}}} | the tier tight's silent_minutes is a finite number above 0, not -inf |
-      | OBSERVABILITY_THRESHOLDS   | {version: 1, rules: {sender_silent: {silent_minutes: 0}}} | the tier tight's silent_minutes is a finite number above 0, not 0 |
-      | OBSERVABILITY_THRESHOLDS   | {version: 1, rules: {sender_silent: {silent_minutes: -5}}} | the tier tight's silent_minutes is a finite number above 0, not -5 |
+      | OBSERVABILITY_THRESHOLDS   | {version: 1, rules: {sender_silent: {silent_minutes: soon}}}   | the tier cycle's silent_minutes is a finite number above 0, not soon |
+      | OBSERVABILITY_THRESHOLDS   | {version: 1, rules: {sender_silent: {silent_minutes: false}}}  | the tier cycle's silent_minutes is a finite number above 0, not False |
+      | OBSERVABILITY_THRESHOLDS   | {version: 1, rules: {sender_silent: {silent_minutes: .nan}}} | the tier cycle's silent_minutes is a finite number above 0, not nan |
+      | OBSERVABILITY_THRESHOLDS   | {version: 1, rules: {sender_silent: {silent_minutes: .inf}}} | the tier cycle's silent_minutes is a finite number above 0, not inf |
+      | OBSERVABILITY_THRESHOLDS   | {version: 1, rules: {sender_silent: {silent_minutes: -.inf}}} | the tier cycle's silent_minutes is a finite number above 0, not -inf |
+      | OBSERVABILITY_THRESHOLDS   | {version: 1, rules: {sender_silent: {silent_minutes: 0}}} | the tier cycle's silent_minutes is a finite number above 0, not 0 |
+      | OBSERVABILITY_THRESHOLDS   | {version: 1, rules: {sender_silent: {silent_minutes: -5}}} | the tier cycle's silent_minutes is a finite number above 0, not -5 |
       | OBSERVABILITY_THRESHOLDS   | {version: 1, rules: {sender_silent: {severity: loud}}}         | sender_silent's severity is critical, warning, info, not loud |
       | OBSERVABILITY_GOOGLE_CREDENTIAL_FILE | /nonexistent    | OBSERVABILITY_GOOGLE_CREDENTIAL_FILE is not a readable JSON file |
 

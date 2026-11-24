@@ -244,12 +244,13 @@ Version 2 also has `tiers`, how each kind of sender reports: a tier's
 go unseen before `sender_silent` says so). The senders read the first two as
 `CALL_LOG_DEADLINE_SECONDS` and `CALL_LOG_HEARTBEAT_SECONDS` (integrations'
 `StorageSink`); here they are checked, and release-state holds each repository's to its
-tier. A tier's `silent_minutes` is at least its heartbeat and five minutes, or the block
-is refused. Left out, they are:
+tier. A tier's `silent_minutes` is at least its heartbeat and seven minutes (the ingest
+pod's wait and 120 s batch gap, the load, and the evaluator's two-minute cycle), or the
+block is refused, as a sender reporting on time would otherwise be called silent. Left out, they are:
 
 | Tier | `deadline_seconds` | `heartbeat_seconds` | `silent_minutes` |
 |---|---|---|---|
-| `tight` | 30 | 300 | 10 |
+| `tight` | 30 | 300 | 15 |
 | `idle` | 28800 | 28800 | 540 |
 | `cycle` | 120 | 120 | 10 |
 
@@ -274,8 +275,8 @@ rules:
 environment as the evaluator would, and exits 2 with the reason it would refuse it.
 Version 1 is read as version 2 through the chained transformers
 (`thresholds.TRANSFORMS`, one a version): `sender_silent`'s `silent_minutes` becomes the
-`tight` and `cycle` tiers' `silent_minutes`, and `ingest_silent`'s becomes its
-`margin_minutes` past them (at least 1). `bin/observability thresholds --upgrade` prints
+`cycle` tier's `silent_minutes` (every version 1 sender reported every two minutes), and
+`ingest_silent`'s becomes its `margin_minutes` past it (at least 1). `bin/observability thresholds --upgrade` prints
 the block at the latest version, as JSON, for the state repository to keep.
 release-state's CI checks a file holding the block with
 `OBSERVABILITY_THRESHOLDS="$(cat <file>)" observability thresholds --check`.
@@ -288,7 +289,7 @@ silent after its tier's `silent_minutes`.
 
 **Senders** are configuration: `OBSERVABILITY_SENDERS` maps each project to
 its sender prefixes, each with how it reports: `tight` (a file once a call has waited
-its tier's short deadline, and a report alone every few minutes), `idle` (the same,
+its tier's short deadline, and a report alone every five minutes), `idle` (the same,
 hours apart), `cycle` (a file every two minutes, as every sender once did), `always`
 (the old name for `cycle`, which still means it) or `on-demand` (it runs only when
 asked, as a Cloud Run service scaled to zero does). Every kind but `on-demand` is

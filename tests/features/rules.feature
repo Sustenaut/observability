@@ -32,7 +32,7 @@ Feature: Rules over the facts
       | at       | storage_ok |
       | 10:00:00 | true       |
       | <last>   | true       |
-    And the senders are "slow: {app: tight}"
+    And the senders are "slow: {app: always}"
     When the rule "ingest_silent" runs at 10:30 over "calls_slow"
     Then the result is empty
 
@@ -51,7 +51,7 @@ Feature: Rules over the facts
     And the ingest pod's cycles for "calls_busy" were
       | at       | storage_ok |
       | 10:29:00 | true       |
-    And the senders are "{slow: {app: tight}, quiet: {app: always}, busy: {app: tight}}"
+    And the senders are "{slow: {app: always}, quiet: {app: always}, busy: {app: always}}"
     When the rule "ingest_silent" runs at 10:30 over "calls_slow" and "calls_quiet" and "calls_busy"
     Then the result is:
       | subject | projects   | oldest_last_seen |
@@ -62,7 +62,7 @@ Feature: Rules over the facts
       | at       | storage_ok |
       | 10:14:00 | true       |
     And the thresholds are "{version: 1, rules: {ingest_silent: {silent_minutes: 20}}}"
-    And the senders are "slow: {app: tight}"
+    And the senders are "slow: {app: always}"
     When the rule "ingest_silent" runs at 10:30 over "calls_slow"
     Then the result is empty
 
@@ -102,16 +102,28 @@ Feature: Rules over the facts
     When the rule "sender_silent" runs at 10:30
     Then the result is empty
 
-  Scenario: A tight sender and a cycle sender are silent after ten minutes, and say their tier
+  Scenario: A cycle sender is silent after ten minutes and a tight one after fifteen, and each says its tier
     Given the senders are "example: {app: tight, web: cycle}"
     When the rule "sender_silent" runs at 10:30
     Then the result is:
       | subject     | tier  | silent_minutes | last_seen |
       | example/web | cycle | 10.0           | 10:10     |
 
+  Scenario: A tight sender quiet for 16 minutes is silent
+    Given the senders are "example: {web: tight}"
+    When the rule "sender_silent" runs at 10:27
+    Then the result is:
+      | subject     | tier  | silent_minutes | last_seen |
+      | example/web | tight | 15.0           | 10:10     |
+
+  Scenario: A tight sender quiet for 14 minutes is not silent yet
+    Given the senders are "example: {web: tight}"
+    When the rule "sender_silent" runs at 10:25
+    Then the result is empty
+
   Scenario: A tier's silence set in OBSERVABILITY_THRESHOLDS is the one sender_silent uses
     Given the senders are "example: {app: tight, web: idle}"
-    And the thresholds are "{version: 2, tiers: {idle: {heartbeat_seconds: 600, silent_minutes: 15}}}"
+    And the thresholds are "{version: 2, tiers: {idle: {heartbeat_seconds: 600, silent_minutes: 17}}}"
     When the rule "sender_silent" runs at 10:30
     Then the result is:
       | subject     | tier | last_seen |
