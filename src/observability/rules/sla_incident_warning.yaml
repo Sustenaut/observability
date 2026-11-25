@@ -1,0 +1,25 @@
+id: sla_incident_warning
+version: 1
+severity: warning
+summary: Cloud Monitoring has an SLA incident of less than critical severity open, until it closes.
+# As sla_incident, for the policies Cloud Monitoring calls ERROR or WARNING, or that
+# carry no severity.
+lookback_minutes: 10080
+query: |
+  WITH newest AS (
+    SELECT *, ROW_NUMBER() OVER (PARTITION BY incident_id ORDER BY publish_time DESC) AS n
+    FROM {{fact:incidents}}
+  )
+  SELECT
+    -- A sender's as sender_silent names it (project/sender, _ for -), a site's by its service.
+    IF(kind = 'heartbeat', CONCAT(REPLACE(service, '-', '_'), '/', sender), service) AS subject,
+    incident_id,
+    policy_name,
+    summary,
+    url,
+    kind,
+    tier,
+    severity,
+    started_at
+  FROM newest
+  WHERE n = 1 AND state = 'open' AND UPPER(IFNULL(severity, '')) != 'CRITICAL'

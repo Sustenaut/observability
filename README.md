@@ -26,6 +26,7 @@ to the query it came from.
 | `need_states` | `convergence.need_states` | deploy service need and walk |
 | `pubrules_checks` | `platform.pubrules_checks` | repository, check and night |
 | `uptime_probes` | `observability.uptime_probes` | target and run of the uptime probe |
+| `incidents` | `observability.incidents_view` | notification Cloud Monitoring sent of an SLA incident, opened or closed (shared-infra's `sla-monitoring.tf`), with its policy's labels: service, sender, tier, kind |
 
 - **`sender_windows`** names a sender by its prefix, the pod or Cloud Run
   revision name without its generated suffix, since that suffix changes with
@@ -226,6 +227,8 @@ query: |
 | `need_drift` | warning | | a deploy service's need the latest walk found drifted, or missing or blocked after a ready walk in the last 30 days; it ends when a walk finds it ready (an `unknown` need, one the walk couldn't check, is not drift) |
 | `pubrules_drift` | warning | | a repository on the release board whose latest nightly check (`platform.pubrules_checks`) failed: it pins an older pubrules than the latest release, or main fails `pubrules sync --check`; the post gives the fix, and the next night's pass ends it. The nightly records passes too, so the table is the night-by-night record for audits |
 | `uptime_down` | critical | `failed_runs: 2` | a target whose newest `failed_runs` uptime probes all failed (`uptime_probes`); one signal a target, ended by the next run it answers |
+| `sla_incident` | critical | | a critical SLA incident Cloud Monitoring has open (shared-infra's `sla-monitoring.tf`: a site down from 2 regions twice, or a sender's heartbeat missing), from the `incidents` fact over `observability.incidents_view`: a signal opens with the incident's newest notification saying open and ends with the one saying closed. A sender's subject is `project/sender`, as `sender_silent`'s, and a site's its service, so `NOTIFIER_ROUTES`' subjects route both; evidence has the incident's id, policy, summary, link, kind, tier, severity and start. It looks back a week |
+| `sla_incident_warning` | warning | | the same for an SLA incident Cloud Monitoring calls less than critical |
 | `uptime_silent` | critical | `silent_minutes: 15` | the uptime probe having recorded nothing for more than `silent_minutes`, or never: one signal, subject `uptime` |
 
 **Thresholds** are configuration too: `OBSERVABILITY_THRESHOLDS`, YAML or JSON, a

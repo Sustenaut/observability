@@ -1,0 +1,72 @@
+[
+  {
+    "name": "incident_id",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "state",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "policy_name",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "started_at",
+    "type": "TIMESTAMP",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "ended_at",
+    "type": "TIMESTAMP",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "summary",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "severity",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "condition_name",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "url",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "service",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "sender",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "tier",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "kind",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "publish_time",
+    "type": "TIMESTAMP",
+    "mode": "NULLABLE"
+  }
+]
