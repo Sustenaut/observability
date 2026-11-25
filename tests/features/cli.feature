@@ -52,7 +52,7 @@ Feature: The observability command
   Scenario: An unknown fact is named
     When I run "observability facts nope --dataset calls_example"
     Then the exit code is 2
-    And stderr mentions "observability: no fact nope; there are call_rollups, need_states, pubrules_checks, sender_windows"
+    And stderr mentions "observability: no fact nope; there are call_rollups, incidents, need_states, pubrules_checks, sender_windows"
 
   Scenario: An empty OBSERVABILITY_THRESHOLDS passes the check
     Given the environment sets "OBSERVABILITY_THRESHOLDS" to "{version: 1, rules: {}}"

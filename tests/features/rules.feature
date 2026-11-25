@@ -238,6 +238,45 @@ Feature: Rules over the facts
       | Sustenaut/pubhost/pin  | pin   | fail   | 0.35.1 | 0.37.0 | `git latest && ./pubrules bump`, then open its PR |                          |
       | Sustenaut/ui/sync      | sync  | fail   | 0.37.0 | 0.37.0 | `git latest && ./pubrules sync`, then open its PR | https://github.com/run/9 |
 
+  Scenario: Each open SLA incident is a signal, a sender's under its sender_silent subject and a site's under its service
+    Given Cloud Monitoring sent the incidents
+      | at    | incident | state  | started | service              | sender | kind      |
+      | 09:00 | i-1      | open   | 09:00   | release-controlplane | app    | heartbeat |
+      | 10:00 | i-2      | open   | 10:00   | visit-ee             | none   | uptime    |
+    When the rule "sla_incident" runs at 10:30
+    Then the result is:
+      | subject                  | incident_id | kind      | tier  | severity | started_at |
+      | release_controlplane/app | i-1         | heartbeat | tight | CRITICAL | 09:00      |
+      | visit-ee                 | i-2         | uptime    | tight | CRITICAL | 10:00      |
+
+  Scenario: An incident Cloud Monitoring closed is no longer a signal
+    Given Cloud Monitoring sent the incidents
+      | at    | incident | state  | started | service | sender | kind      |
+      | 09:00 | i-1      | open   | 09:00   | notifier| e2e    | heartbeat |
+      | 10:20 | i-1      | closed | 09:00   | notifier| e2e    | heartbeat |
+      | 10:00 | i-2      | open   | 10:00   | notifier| e2e    | heartbeat |
+    When the rule "sla_incident" runs at 10:30
+    Then the result is:
+      | subject      | incident_id |
+      | notifier/e2e | i-2         |
+
+  Scenario: A less than critical incident is sla_incident_warning's, not sla_incident's
+    Given Cloud Monitoring sent the incidents
+      | at    | incident | state | started | service | sender | kind   | severity |
+      | 10:00 | i-1      | open  | 10:00   | site    | none   | uptime | WARNING  |
+    When the rule "sla_incident" runs at 10:30
+    Then the result is empty
+    When the rule "sla_incident_warning" runs at 10:30
+    Then the result is:
+      | subject | severity |
+      | site    | WARNING  |
+
+  Scenario: No incident, no signal
+    Given Cloud Monitoring sent the incidents
+      | at | incident | state | started | service | sender | kind |
+    When the rule "sla_incident" runs at 10:30
+    Then the result is empty
+
   Scenario: A site whose latest two probes failed is down, and one that answers again is not
     Given the uptime probe recorded
       | at    | target | up    | detail             |

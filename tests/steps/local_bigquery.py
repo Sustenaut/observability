@@ -59,6 +59,7 @@ class Warehouse:
         self.pubrules_checks([])
         # And the uptime probe's rows.
         self.uptime_probes([])
+        self.incidents([])
 
     def load(self, dataset: str, fixture: str) -> None:
         self.hold(dataset, json.loads((HERE / "fixtures" / f"{fixture}.json").read_text()), fixture)
@@ -129,6 +130,23 @@ class Warehouse:
             full = {"observed_at": at, "pinned": "", "latest": "", "main_commit": "", "run_url": "", "fix": "",
                     "run_started_at": at, **{k: v for k, v in row.items() if k != "night"}}
             self.db.execute(f"INSERT INTO platform.pubrules_checks VALUES ({', '.join('?' * len(names))})",
+                            [full[n] for n in names])
+
+    def incidents(self, rows: list[dict]) -> None:
+        """observability.incidents_view, holding these rows: their times as the fixtures' clock."""
+        self._observability()
+        if "observability.incidents_view" not in self.made:
+            columns = ", ".join(f'"{c["name"]}" {TYPES[c["type"]]}' for c in schema("incidents_view"))
+            self.db.execute(f"CREATE TABLE observability.incidents_view ({columns})")
+            self.made.add("observability.incidents_view")
+        names = [c["name"] for c in schema("incidents_view")]
+        for row in rows:
+            full = {"policy_name": f"projects/p/alertPolicies/{row['incident']}", "summary": "s", "severity": "CRITICAL",
+                    "condition_name": "c", "url": f"https://console.example/{row['incident']}", "tier": "tight",
+                    "started_at": moment(row["started"]), "ended_at": None, "incident_id": row["incident"],
+                    "publish_time": moment(row["at"]),
+                    **{k: v for k, v in row.items() if k not in ("at", "started", "incident") and v != ""}}
+            self.db.execute(f"INSERT INTO observability.incidents_view VALUES ({', '.join('?' * len(names))})",
                             [full[n] for n in names])
 
     def uptime_probes(self, rows: list[dict]) -> None:

@@ -1,0 +1,29 @@
+id: sla_incident
+version: 1
+severity: critical
+summary: Cloud Monitoring has a critical SLA incident open, a site down or a sender silent, until it closes.
+# Cloud Monitoring judges the SLAs (shared-infra's sla-monitoring.tf) and sends each
+# incident, opened and closed, into observability.incidents; this follows it: a signal
+# opens with the incident's newest notification saying open and ends with the one
+# saying closed. A sender's subject is project/sender, as sender_silent's, and a
+# site's its service, so NOTIFIER_ROUTES' subjects route both as before. The lookback
+# holds a week: an incident open longer ends its signal when its opening passes out of it.
+lookback_minutes: 10080
+query: |
+  WITH newest AS (
+    SELECT *, ROW_NUMBER() OVER (PARTITION BY incident_id ORDER BY publish_time DESC) AS n
+    FROM {{fact:incidents}}
+  )
+  SELECT
+    -- A sender's as sender_silent names it (project/sender, _ for -), a site's by its service.
+    IF(kind = 'heartbeat', CONCAT(REPLACE(service, '-', '_'), '/', sender), service) AS subject,
+    incident_id,
+    policy_name,
+    summary,
+    url,
+    kind,
+    tier,
+    severity,
+    started_at
+  FROM newest
+  WHERE n = 1 AND state = 'open' AND UPPER(severity) = 'CRITICAL'
