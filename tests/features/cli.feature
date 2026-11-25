@@ -64,7 +64,63 @@ Feature: The observability command
     Given the environment sets "OBSERVABILITY_THRESHOLDS" to "{version: 1, rules: {sender_silent: {silent_minutes: 0}}}"
     When I run "observability thresholds --check"
     Then the exit code is 2
-    And stderr mentions "observability: OBSERVABILITY_THRESHOLDS: sender_silent's silent_minutes is a finite number above 0, not 0"
+    And stderr mentions "observability: OBSERVABILITY_THRESHOLDS: the tier cycle's silent_minutes is a finite number above 0, not 0"
+
+  Scenario: The upgrade prints version 1 as version 2, the silences moved to the cycle tier and ingest_silent's margin
+    Given the environment sets "OBSERVABILITY_THRESHOLDS" to "{version: 1, rules: {sender_silent: {silent_minutes: 12, severity: warning}, ingest_silent: {silent_minutes: 20}, drops: {severity: info}}}"
+    When I run "observability thresholds --upgrade"
+    Then it succeeds
+    And it prints the JSON:
+      """
+      {"version": 2, "tiers": {"cycle": {"silent_minutes": 12}},
+       "rules": {"sender_silent": {"severity": "warning"}, "ingest_silent": {"margin_minutes": 8}, "drops": {"severity": "info"}}}
+      """
+
+  Scenario: The upgrade drops a rule left with nothing, and keeps a block already at the latest version
+    Given the environment sets "OBSERVABILITY_THRESHOLDS" to "{version: 1, rules: {sender_silent: {silent_minutes: 10}}}"
+    When I run "observability thresholds --upgrade"
+    Then it prints the JSON:
+      """
+      {"version": 2, "tiers": {"cycle": {"silent_minutes": 10}}, "rules": {}}
+      """
+
+  Scenario: The upgrade keeps version 2 as it is
+    Given the environment sets "OBSERVABILITY_THRESHOLDS" to "{version: 2, tiers: {idle: {silent_minutes: 600}}, rules: {}}"
+    When I run "observability thresholds --upgrade"
+    Then it prints the JSON:
+      """
+      {"version": 2, "tiers": {"idle": {"silent_minutes": 600}}, "rules": {}}
+      """
+
+  Scenario: An empty block upgrades to the latest version with no rules
+    Given the environment does not set "OBSERVABILITY_THRESHOLDS"
+    When I run "observability thresholds --upgrade"
+    Then it prints the JSON:
+      """
+      {"version": 2, "rules": {}}
+      """
+
+  Scenario: A version 1 ingest_silent silence shorter than the senders' still leaves a margin
+    Given the environment sets "OBSERVABILITY_THRESHOLDS" to "{version: 1, rules: {ingest_silent: {silent_minutes: 8}}}"
+    When I run "observability thresholds --upgrade"
+    Then it prints the JSON:
+      """
+      {"version": 2, "rules": {"ingest_silent": {"margin_minutes": 1}}}
+      """
+
+  Scenario: The upgrade refuses a block the evaluator would refuse
+    Given the environment sets "OBSERVABILITY_THRESHOLDS" to "{version: 1, rules: {ingest_silent: {silent_minutes: soon}}}"
+    When I run "observability thresholds --upgrade"
+    Then the exit code is 2
+    And stderr mentions "ingest_silent's margin_minutes is a finite number above 0, not soon"
+
+  Scenario: A version 1 block with no rules upgrades to one with none
+    Given the environment sets "OBSERVABILITY_THRESHOLDS" to "{version: 1}"
+    When I run "observability thresholds --upgrade"
+    Then it prints the JSON:
+      """
+      {"version": 2}
+      """
 
   # integrations is pinned in four files, and CI builds no image: the
   # Dockerfile's lock (evaluator-requirements.in and .lock), pyproject.toml's

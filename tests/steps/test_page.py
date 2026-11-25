@@ -4,14 +4,14 @@ and the app answering pubtest's HTTP steps."""
 from __future__ import annotations
 
 import importlib
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from urllib.parse import unquote, urlsplit, urlunsplit
 
 import pytest
 from pubtest.http import asgi
 from pytest_bdd import given, parsers, scenarios, when
 
-from observability import links, rules, senders
+from observability import links, rules, senders, thresholds
 from observability.config import Dataset
 from observability.page.app import create_app
 from observability.page.queries import signal, trends
@@ -102,7 +102,8 @@ def no_loader(page: dict) -> None:
 
 def read(warehouse: Warehouse, page: dict):
     expected = senders.parse(page["senders"], page["datasets"])
-    return trends(warehouse.run, page["datasets"], expected, NOW)
+    silent = {tier: timedelta(minutes=numbers["silent_minutes"]) for tier, numbers in thresholds.tiers("").items()}
+    return trends(warehouse.run, page["datasets"], expected, NOW, silent)
 
 
 def read_signal(warehouse: Warehouse, page: dict, rule_id: str, subject: str, started: datetime):

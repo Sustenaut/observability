@@ -39,12 +39,16 @@ def main(argv: list[str] | None = None, *, transport: Any = None, storage_token:
         "evaluate", help="run every rule, and print the signals starting and ending now as JSON lines")
     evaluating.add_argument("--now", help="the moment to evaluate, in ISO 8601 (default: now)")
     checking = commands.add_parser(
-        "thresholds", help=f"check ${thresholds.VARIABLE} against the rules")
-    checking.add_argument("--check", action="store_true", required=True,
-                          help="check only: exit 2 with the reason when it would be refused")
+        "thresholds", help=f"check ${thresholds.VARIABLE} against the rules, or print it at the latest version")
+    doing = checking.add_mutually_exclusive_group(required=True)
+    doing.add_argument("--check", action="store_true",
+                       help="check only: exit 2 with the reason when it would be refused")
+    doing.add_argument("--upgrade", action="store_true",
+                       help=f"print the block at version {thresholds.LATEST} as JSON, through each version's "
+                            "transformer, for the state repository to keep")
     args = parser.parse_args(argv)
     if args.command == "thresholds":
-        return check_thresholds()
+        return upgrade_thresholds() if args.upgrade else check_thresholds()
     if args.command == "rules":
         from observability import rules  # noqa: PLC0415 - needs PyYAML
 
@@ -97,6 +101,22 @@ def check_thresholds() -> int:
     return 0
 
 
+def upgrade_thresholds() -> int:
+    """OBSERVABILITY_THRESHOLDS at the latest version, as JSON: 0 when the evaluator
+    would start with it, 2 with the reason when it wouldn't."""
+    from observability import rules  # noqa: PLC0415 - needs PyYAML
+
+    text = os.environ.get(thresholds.VARIABLE, "")
+    try:
+        thresholds.parse(text, rules.load())
+        block = thresholds.upgraded(text)
+    except ValueError as error:
+        print(f"observability: {error}", file=sys.stderr)
+        return 2
+    print(json.dumps(block, indent=2))
+    return 0
+
+
 def credential(path: str) -> dict:
     """Google's credential for BigQuery, from the file at `path`: an external_account
     credential (Workload Identity, google-credential.yaml) or a service account's key."""
@@ -127,6 +147,7 @@ def evaluate(when: str | None, transport: Any, storage_token: Any = None) -> int
         raise ValueError(f"no dataset: set {config.VARIABLE}")
     expected = senders.parse(os.environ.get(senders.VARIABLE, ""), datasets)
     every = thresholds.effective(os.environ.get(thresholds.VARIABLE, ""), rules.load())
+    tiers = thresholds.tiers(os.environ.get(thresholds.VARIABLE, ""))
     caller = Caller("Sustenaut/observability", "evaluator", transport=transport)
     warehouse = Warehouse(caller, credential(os.environ.get(GOOGLE_FILE, "")))
     url = os.environ.get(STORAGE, "")
@@ -141,7 +162,8 @@ def evaluate(when: str | None, transport: Any, storage_token: Any = None) -> int
         # Without them every breach would start again, so nothing is evaluated.
         raise ValueError(f"could not read the open signals: {error}") from None
     outcome = evaluator.evaluate(list(every.values()), warehouse.query, datasets, senders.always(expected),
-                                 opened, now)
+                                 opened, now, senders.expected(expected, tiers),
+                                 senders.windows(expected, tiers, datasets))
     for signal in outcome.signals:
         print(json.dumps(signal.record(), sort_keys=True))
     for rule, error in sorted(outcome.failed.items()):

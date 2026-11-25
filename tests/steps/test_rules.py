@@ -75,9 +75,9 @@ def thresholds_are(ran: dict, text: str) -> None:
 
 def cell(column: str, text: str) -> object:
     """A cycle's value as a feature's table writes it."""
-    if column == "storage_ok":
+    if column in ("storage_ok", "inbox_more", "rejected_more"):
         return text == "true"
-    return text
+    return int(text) if text.isdigit() else text
 
 
 @given(parsers.parse('the ingest pod\'s cycles for "{dataset}" were'))
@@ -96,7 +96,10 @@ def run(ctx, warehouse: Warehouse, ran: dict, rule: str, clock: str, datasets: l
     def found() -> list[dict]:
         expected = senders.parse(ran["senders_text"], datasets)
         every = thresholds.effective(ran["thresholds"], rules.load())
-        return table(warehouse.run(every[rule].sql(datasets, senders.always(expected), moment(clock))))
+        tiers = thresholds.tiers(ran["thresholds"])
+        return table(warehouse.run(every[rule].sql(datasets, senders.always(expected), moment(clock),
+                                                   senders.expected(expected, tiers),
+                                                   senders.windows(expected, tiers, datasets))))
 
     ctx.attempt(found)
 

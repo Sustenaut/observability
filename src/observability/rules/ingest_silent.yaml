@@ -1,13 +1,16 @@
 id: ingest_silent
-version: 2
+version: 3
 severity: critical
-summary: The ingest pod has reported nothing for one or more projects for more than its silent_minutes (15 by default).
+summary: The ingest pod has reported nothing for one or more projects for longer than the project's window and its margin_minutes (5 by default).
 # One subject, ingest, however many projects are silent: the pod is one, and one
 # that stops stops for every project at once, so one signal says it. Version 2 made
-# it one subject (version 1 had one per project) and its threshold a param.
+# it one subject (version 1 had one per project) and its threshold a param. Version
+# 3 gives each project its own window: the pod reports on a project when its files
+# come and at every sweep, so a project's window is its quickest expected sender's
+# silence (senders.windows), and the margin is the pod's time to take a file.
 params:
-  silent_minutes: 15
-lookback_minutes: 60
+  margin_minutes: 5
+lookback_minutes: 600
 query: |
   WITH seen AS (
     SELECT project, MAX(last_cycle_end) AS last_seen
@@ -16,11 +19,12 @@ query: |
     GROUP BY project
   ),
   silent AS (
-    SELECT projects.project, seen.last_seen
-    FROM {{projects}} AS projects
-    LEFT JOIN seen ON seen.project = projects.project
+    SELECT windows.project, seen.last_seen
+    FROM {{project_windows}} AS windows
+    LEFT JOIN seen ON seen.project = windows.project
     WHERE seen.last_seen IS NULL
-      OR seen.last_seen < TIMESTAMP_SUB({{now}}, INTERVAL CAST({{param:silent_minutes}} * 60 AS INT64) SECOND)
+      OR seen.last_seen < TIMESTAMP_SUB({{now}},
+           INTERVAL CAST((CAST(windows.silent_minutes AS FLOAT64) + {{param:margin_minutes}}) * 60 AS INT64) SECOND)
   )
   SELECT
     'ingest' AS subject,

@@ -11,6 +11,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Callable
 
 from observability import facts, rules
+from observability import senders as sender_tiers
 from observability.config import Dataset
 from observability.evaluate import OPEN_SIGNALS
 
@@ -66,7 +67,7 @@ class Sender:
     project: str
     kind: str
     prefix: str
-    expected: str  # always, on-demand, or "" when the configuration doesn't name it
+    expected: str  # its kind (tight, idle, cycle, always, on-demand), or "" when the configuration doesn't name it
     last_seen: datetime | None
     windows_last_hour: int
     silent: bool
@@ -88,25 +89,36 @@ def utc(moment: datetime) -> datetime:
 
 
 def senders(rows: list[dict[str, Any]], expected: dict[str, dict[str, str]], now: datetime,
-            silent_after: timedelta = SILENT) -> list[Sender]:
-    """Every sender seen in the last day, and every one configured though not seen."""
+            silent_after: timedelta | dict[str, timedelta] = SILENT) -> list[Sender]:
+    """Every sender seen in the last day, and every one configured though not seen. A
+    sender of a tier is silent after its tier's silence (`silent_after` by tier, or one
+    for every tier)."""
+    def after(kind: str) -> timedelta | None:
+        tier = sender_tiers.tier(kind) if kind else None
+        if tier is None:
+            return None
+        return silent_after.get(tier, SILENT) if isinstance(silent_after, dict) else silent_after
+
     found: dict[tuple[str, str, str], Sender] = {}
     for row in rows:
         kind = expected.get(row["project"], {}).get(row["sender_prefix"], "") if row["kind"] == "sender" else ""
         last_seen = utc(row["last_seen"])
-        silent = kind == "always" and now - last_seen > silent_after
+        limit = after(kind)
+        silent = limit is not None and now - last_seen > limit
         found[(row["project"], row["kind"], row["sender_prefix"])] = Sender(
             row["project"], row["kind"], row["sender_prefix"], kind, last_seen,
             int(row["windows_last_hour"]), silent)
     for project, prefixes in expected.items():
         for prefix, kind in prefixes.items():
             if (project, "sender", prefix) not in found:
-                found[(project, "sender", prefix)] = Sender(project, "sender", prefix, kind, None, 0, kind == "always")
+                found[(project, "sender", prefix)] = Sender(project, "sender", prefix, kind, None, 0,
+                                                            after(kind) is not None)
     return [found[key] for key in sorted(found)]
 
 
 def trends(query: Callable[[str], list[dict[str, Any]]], datasets: list[Dataset],
-           expected: dict[str, dict[str, str]], now: datetime, silent_after: timedelta = SILENT) -> Trends:
+           expected: dict[str, dict[str, str]], now: datetime,
+           silent_after: timedelta | dict[str, timedelta] = SILENT) -> Trends:
     """Everything the page shows, at `now`; a sender is silent after `silent_after`."""
     def run(text: str) -> list[dict[str, Any]]:
         return query(rules.render(text, DAY_MINUTES, datasets, [], now))

@@ -14,9 +14,12 @@ A query returns one row per subject in breach now; `subject` names it, and
 every other column is the signal's evidence. It reads facts as
 `{{fact:<id>}}`, every configured dataset's rows together from its
 lookback on, and may use `{{now}}`, the moment evaluated, `{{projects}}`,
-a table of the configured projects (`project`), and `{{always_senders}}`,
+a table of the configured projects (`project`), `{{always_senders}}`,
 a table of the senders expected to report all the time (`project`,
-`sender_prefix`).
+`sender_prefix`), `{{expected_senders}}`, the same with each one's `tier` and
+`silent_minutes` (observability.senders: a string, so a query casts it), and
+`{{project_windows}}`, each project's `silent_minutes` for the ingest pod's
+reports (senders.windows).
 
 A rule may have `params`, its thresholds: each a name (lowercase letters and
 underscores) and a number, its default. The query reads one as
@@ -67,7 +70,7 @@ PARAM = re.compile(r"\{\{param:([a-z_]+)\}\}")
 PARAM_NAME = re.compile(r"[a-z_]+")
 # Anything in double braces: each must be a fact, a param or a known placeholder.
 BRACED = re.compile(r"\{\{(.*?)\}\}")
-KNOWN = {"now", "projects", "always_senders"}
+KNOWN = {"now", "projects", "always_senders", "expected_senders", "project_windows"}
 
 
 @dataclass(frozen=True)
@@ -90,9 +93,12 @@ class Rule:
     # OBSERVABILITY_THRESHOLDS is applied (observability.thresholds).
     params: dict[str, float] = field(default_factory=dict)
 
-    def sql(self, datasets: list[Dataset], always: list[tuple[str, str]], now: datetime) -> str:
-        """The query for these datasets and senders, at `now`, with the rule's params."""
-        return render(self.query, self.lookback_minutes, datasets, always, now, self.params)
+    def sql(self, datasets: list[Dataset], always: list[tuple[str, str]], now: datetime,
+            expected: list[tuple[str, str, str, float]] | None = None,
+            windows: list[tuple[str, float]] | None = None) -> str:
+        """The query for these datasets and senders, at `now`, with the rule's params:
+        `expected` each sender with its tier and silence, `windows` each project's."""
+        return render(self.query, self.lookback_minutes, datasets, always, now, self.params, expected, windows)
 
     def trend_sql(self, datasets: list[Dataset], minutes: int, now: datetime) -> str:
         """The trend's query, over `minutes` up to `now`, with the rule's params."""
@@ -113,7 +119,9 @@ def number(value: float) -> str:
 
 
 def render(query: str, lookback_minutes: int, datasets: list[Dataset], always: list[tuple[str, str]],
-           now: datetime, params: dict[str, float] | None = None) -> str:
+           now: datetime, params: dict[str, float] | None = None,
+           expected: list[tuple[str, str, str, float]] | None = None,
+           windows: list[tuple[str, float]] | None = None) -> str:
     """A query over the facts, its placeholders filled in: the rules', and any other
     reader's, such as the trends page. `params` are the effective params its
     `{{param:<name>}}` read."""
@@ -123,9 +131,13 @@ def render(query: str, lookback_minutes: int, datasets: list[Dataset], always: l
     text = PARAM.sub(lambda m: number(given[m.group(1)]), query)
     text = FACT.sub(lambda m: f"(\n{known[m.group(1)].union(datasets, since)}\n)", text)
     projects = [(d.project,) for d in datasets]
+    senders = [(p, s, t, number(m)) for p, s, t, m in expected or []]
+    project_windows = [(p, number(m)) for p, m in windows or []]
     return (text.replace("{{now}}", facts.timestamp(now))
             .replace("{{projects}}", table(("project",), projects))
-            .replace("{{always_senders}}", table(("project", "sender_prefix"), always)))
+            .replace("{{always_senders}}", table(("project", "sender_prefix"), always))
+            .replace("{{expected_senders}}", table(("project", "sender_prefix", "tier", "silent_minutes"), senders))
+            .replace("{{project_windows}}", table(("project", "silent_minutes"), project_windows)))
 
 
 def literal(value: str) -> str:

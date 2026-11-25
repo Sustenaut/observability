@@ -1,13 +1,16 @@
 id: rejected_files
-version: 1
+version: 2
 severity: warning
 summary: A project's buffer holds files that could not be loaded.
-lookback_minutes: 10
+# Version 2 reads the newest of the ingest pod's reports that listed the buffer: only
+# a sweep lists rejected/, and a sweep may come only every few hours, so its lookback
+# holds one, and a pass on the files storage told of says nothing of rejected/.
+lookback_minutes: 600
 query: |
   WITH windows AS (
     SELECT *, ROW_NUMBER() OVER (PARTITION BY project ORDER BY bucket DESC) AS newest
     FROM {{fact:sender_windows}}
-    WHERE kind = 'ingest'
+    WHERE kind = 'ingest' AND rejected_files IS NOT NULL
   )
   SELECT project AS subject, bucket, rejected_files, rejected_oldest_seconds
   FROM windows

@@ -194,7 +194,10 @@ A rule is one YAML file under `src/observability/rules/`: its `id`,
 query returns one row per subject in breach now; `subject` names it, and
 every other column is the signal's evidence. It reads `{{fact:<id>}}` (every
 dataset's rows, from its lookback on), and may use `{{now}}`,
-`{{projects}}` and `{{always_senders}}`.
+`{{projects}}`, `{{always_senders}}`, `{{expected_senders}}` (each expected sender with
+its `tier` and `silent_minutes`) and `{{project_windows}}` (each project's
+`silent_minutes` for the ingest pod's reports: its quickest expected sender's, or the
+longest tier's for a project with none).
 
 A rule may have `params`: its thresholds, each a name (lowercase letters and
 underscores) and a number, its default. The query reads one as
@@ -212,14 +215,14 @@ query: |
 
 | Rule | Severity | Params (defaults) | Finds |
 |---|---|---|---|
-| `sender_silent` | critical | `silent_minutes: 10` | an always-on sender with no report for more than `silent_minutes`, or never seen; one signal a sender |
-| `ingest_silent` | critical | `silent_minutes: 15` | the ingest pod having reported nothing for one or more projects for more than `silent_minutes`: one signal, subject `ingest`, whose evidence lists the silent `projects` (comma-separated) and the `oldest_last_seen` |
+| `sender_silent` | critical | | an expected sender with no report for longer than its tier's `silent_minutes` (below), or never seen; one signal a sender, whose evidence has its `tier` and `silent_minutes` |
+| `ingest_silent` | critical | `margin_minutes: 5` | the ingest pod having reported nothing for one or more projects for longer than the project's window and `margin_minutes`: one signal, subject `ingest`, whose evidence lists the silent `projects` (comma-separated) and the `oldest_last_seen` |
 | `storage_unreachable` | critical | `failed_cycles: 3`, `window_cycles: 5` | storage failing the ingest pod in `failed_cycles` or more of its newest `window_cycles` cycles (two-minute buckets, across every project: a cycle failed when any project's did): one signal, subject `storage`, whose evidence has the `failed` count, the `cycles` judged, the failing `projects`, the `latest_failure` and its `problems` |
 | `storage_errors` | warning | | storage not answering the ingest pod for a project in its latest cycle, one signal a project |
 | `storage_failures` | warning | | a sender failing to write to storage in the last 6 minutes |
 | `drops` | warning | | a sender dropping call records in the last 6 minutes |
-| `inbox_stale` | warning | | a file waiting more than 10 minutes in a project's inbox |
-| `rejected_files` | warning | | files in a project's buffer that couldn't load |
+| `inbox_stale` | warning | | a file waiting more than 10 minutes in a project's inbox, by the newest sweep (a pass on the files storage told of lists nothing) |
+| `rejected_files` | warning | | files in a project's buffer that couldn't load, by the newest listing of it, up to ten hours back |
 | `load_jobs_near_limit` | warning | | more than 1,200 of the 1,400 load jobs a table used today |
 | `plugin_errors` | warning | | more than 5% of an app's calls to a plugin failing over 30 minutes, out of at least 20 |
 | `slow_pages` | warning | | a warm sender answering slower than 5 seconds in the last 6 minutes |
@@ -236,13 +239,32 @@ versioned block that gives a rule's params other numbers and may give it another
 severity. A rule or param it leaves out keeps the rule file's default, and empty or
 unset every rule runs as its file says. It names only rules there are and params they
 have, each value a finite number above 0 and a severity `critical`, `warning` or `info`; anything else,
-or a version other than 1, is refused, and the evaluator (and the page) won't start.
+or a version other than 1 or 2, is refused, and the evaluator (and the page) won't start.
+
+Version 2 also has `tiers`, how each kind of sender reports: a tier's
+`deadline_seconds` (how long a call waits before its file goes), `heartbeat_seconds`
+(how often a sender with no calls still reports) and `silent_minutes` (how long it may
+go unseen before `sender_silent` says so). The senders read the first two as
+`CALL_LOG_DEADLINE_SECONDS` and `CALL_LOG_HEARTBEAT_SECONDS` (integrations'
+`StorageSink`); here they are checked, and release-state holds each repository's to its
+tier. A tier's `silent_minutes` is at least its heartbeat and seven minutes (the ingest
+pod's wait and 120 s batch gap, the load, and the evaluator's two-minute cycle), or the
+block is refused, as a sender reporting on time would otherwise be called silent. Left out, they are:
+
+| Tier | `deadline_seconds` | `heartbeat_seconds` | `silent_minutes` |
+|---|---|---|---|
+| `tight` | 30 | 300 | 15 |
+| `idle` | 28800 | 28800 | 540 |
+| `cycle` | 120 | 120 | 10 |
 
 ```yaml
-version: 1
+version: 2
+tiers:
+  idle:
+    silent_minutes: 600
 rules:
   ingest_silent:
-    silent_minutes: 20
+    margin_minutes: 10
   storage_unreachable:
     failed_cycles: 4
     window_cycles: 6
@@ -254,6 +276,11 @@ rules:
 
 `bin/observability thresholds --check` checks `OBSERVABILITY_THRESHOLDS` from the
 environment as the evaluator would, and exits 2 with the reason it would refuse it.
+Version 1 is read as version 2 through the chained transformers
+(`thresholds.TRANSFORMS`, one a version): `sender_silent`'s `silent_minutes` becomes the
+`cycle` tier's `silent_minutes` (every version 1 sender reported every two minutes), and
+`ingest_silent`'s becomes its `margin_minutes` past it (at least 1). `bin/observability thresholds --upgrade` prints
+the block at the latest version, as JSON, for the state repository to keep.
 release-state's CI checks a file holding the block with
 `OBSERVABILITY_THRESHOLDS="$(cat <file>)" observability thresholds --check`.
 
@@ -261,18 +288,28 @@ Each signal a rule with params starts records the ones it ran with in its eviden
 `thresholds` (`{"silent_minutes": 10}`), so its history says which threshold applied
 when they change. The signal's page charts the trend against the effective threshold
 and lists the rule's thresholds as they are now, and the trends page calls a sender
-silent after `sender_silent`'s effective `silent_minutes`.
+silent after its tier's `silent_minutes`.
 
 **Senders** are configuration: `OBSERVABILITY_SENDERS` maps each project to
-its sender prefixes, each `always` (silence is a fault) or `on-demand` (it
-runs only when asked, as a Cloud Run service scaled to zero does). Only
-`always` senders can be silent.
+its sender prefixes, each with how it reports: `tight` (a file once a call has waited
+its tier's short deadline, and a report alone every five minutes), `idle` (the same,
+hours apart), `cycle` (a file every two minutes, as every sender once did), `always`
+(the old name for `cycle`, which still means it) or `on-demand` (it runs only when
+asked, as a Cloud Run service scaled to zero does). Every kind but `on-demand` is
+expected, and silent after its tier's `silent_minutes`.
 
 ```yaml
 example:
-  app: always
+  app: tight
+  worker: idle
   plan: on-demand
 ```
+
+A sender's counters (drops, storage failures, page times, cold starts) ride in its
+next file, and its report's `at` is when that file went, so `storage_failures`,
+`drops` and `slow_pages` see them in the minutes after it arrives, whatever its tier.
+A tight or idle sender's page times cover the time since its last file rather than two
+minutes, so `cold_start_share` counts its files, not two-minute windows.
 
 ## The evaluator
 
@@ -317,8 +354,8 @@ sign-in: plain HTML from the server, with no script, never cached. It shows:
   `call_rollups` (calls to outside services only, not request totals).
 - **Senders**: every sender and ingest pod seen in the last day, and every one
   `OBSERVABILITY_SENDERS` expects, with its last report and its state: reporting, on
-  demand, or silent (an always-on sender quiet for more than `sender_silent`'s
-  `silent_minutes`, 10 unless `OBSERVABILITY_THRESHOLDS` says otherwise).
+  demand, or silent (an expected sender quiet for longer than its tier's
+  `silent_minutes`).
 - **Page times**: the newest 30 two-minute windows of each sender that answered
   requests, with their quickest, median and slowest answers, and cold starts marked.
 
@@ -389,7 +426,7 @@ sets them (`pubfleet variables --apply`, which then runs the deploy). By hand:
 ```sh
 gh variable set OBSERVABILITY_DATASETS -R Sustenaut/observability --body 'calls_example,calls_other'
 gh variable set OBSERVABILITY_SENDERS -R Sustenaut/observability --body '{"example": {"app": "always"}}'
-gh variable set OBSERVABILITY_THRESHOLDS -R Sustenaut/observability --body '{"version": 1, "rules": {}}'
+gh variable set OBSERVABILITY_THRESHOLDS -R Sustenaut/observability --body '{"version": 2, "rules": {}}'
 ```
 
 pubrules.json's `deploy` block lists everything else it needs, and pubrules's deploy walk
@@ -435,7 +472,7 @@ Some needs it only checks, and says what a person does:
   missing, the fix is the entry to add, in storage, or in the owner's state file.
 - **The variables** `OBSERVABILITY_DATASETS`, `OBSERVABILITY_SENDERS` and
   `OBSERVABILITY_THRESHOLDS`, which must be set: the walk counts an empty variable as
-  missing, so with no overrides `OBSERVABILITY_THRESHOLDS` is `{"version": 1, "rules": {}}`.
+  missing, so with no overrides `OBSERVABILITY_THRESHOLDS` is `{"version": 2, "rules": {}}`.
 - **storage itself** (`upstream`) and the site's DNS record, from shared-infra's zone.
 
 `./pubdeploy walk` without `--fulfil` (or `pubdeploy check`) changes nothing, and
