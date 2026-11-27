@@ -2,7 +2,7 @@
   "claims": {
     "identity": {
       "class": "archival",
-      "content": "observability 0.4.0 is released as v0.4.0 from commit fd44c5009fce12f37587d4004ae7d01008a4ac1e.",
+      "content": "observability 0.5.0 is released as v0.5.0 from commit 59e20e37452d1a4ee2ed9420c390d99daf858704.",
       "data": {
         "columns": [
           {
@@ -27,25 +27,25 @@
         "rows": [
           [
             "observability",
-            "0.4.0",
+            "0.5.0",
             "",
             "",
-            "v0.4.0",
-            "fd44c5009fce12f37587d4004ae7d01008a4ac1e"
+            "v0.5.0",
+            "59e20e37452d1a4ee2ed9420c390d99daf858704"
           ]
         ]
       },
-      "scope": "the published release v0.4.0 of observability",
+      "scope": "the published release v0.5.0 of observability",
       "sources": [
         {
           "ref": "observability",
-          "revision": "fd44c5009fce12f37587d4004ae7d01008a4ac1e"
+          "revision": "59e20e37452d1a4ee2ed9420c390d99daf858704"
         }
       ]
     },
     "release": {
       "class": "archival",
-      "content": "observability 0.4.0 was released on 2026-11-20 from commit fd44c5009fce12f37587d4004ae7d01008a4ac1e with these changes.",
+      "content": "observability 0.5.0 was released on 2026-11-27 from commit 59e20e37452d1a4ee2ed9420c390d99daf858704 with these changes.",
       "data": {
         "columns": [
           {
@@ -57,40 +57,40 @@
         ],
         "rows": [
           [
-            "internal",
-            "pubkit is now pubrules: the repository runs on pubrules 0.43.0 (pubrules.json, ./pubrules, the managed workflows and test pins)"
+            "added",
+            "The uptime probe records: with UPTIME_TABLE set, as the Cloud Run job observability-uptime that Cloud Scheduler starts every five minutes, each run appends one row per target, up or not, to BigQuery's observability.uptime_probes as the job's attached account (no key), keeps no state and posts nothing, and exits 1 when any target failed; the new fact uptime_probes reads them, and the rules uptime_down (critical: a target's newest failed_runs probes, 2 by default, all failed) and uptime_silent (critical: no probe row for silent_minutes, 15 by default) go to Slack through the notifier; deploy.yml sets the job's image and settings once UPTIME_CLOUD_RUN is set; targets are probed all at once"
           ],
           [
             "changed",
-            "The fact pubkit_checks is now pubrules_checks and reads platform.pubrules_checks, and the rule pubkit_drift is now pubrules_drift"
-          ],
-          [
-            "internal",
-            "the suite's scenarios are Given/When/Then on pubtest's steps"
+            "inbox_stale (version 2) reads the newest sweep's report and rejected_files (version 2) the newest listing's, up to ten hours back, as a pass on the files storage told of lists nothing"
           ],
           [
             "added",
-            "Rules may have params, their thresholds as numbers that the query reads as {{param:<name>}}, and a trend's threshold may name one; OBSERVABILITY_THRESHOLDS, a versioned block, sets other numbers and severities for them (an unknown version, rule or param, a value that is not a finite number above 0, or a bad severity stops the evaluator; `observability thresholds --check` checks it from the environment and says so without starting it), and each signal a rule with params starts records the thresholds it ran with in its evidence"
+            "observability thresholds --upgrade prints OBSERVABILITY_THRESHOLDS at the latest version; version 1 is read through the chained transformers, sender_silent's silent_minutes becoming the tight and cycle tiers' and ingest_silent's its margin_minutes"
           ],
           [
-            "changed",
-            "Calmer critical rules, each version 2 with its thresholds as params: ingest_silent is one subject, ingest, after 15 minutes without a cycle for any project (evidence: projects, oldest_last_seen); sender_silent waits 10 minutes, not 6; storage_unreachable is one subject, storage, when storage failed 3 or more of the ingest pod's latest 5 cycles. The single-cycle check is the new warning rule storage_errors"
+            "added",
+            "Senders have tiers: OBSERVABILITY_SENDERS takes tight, idle and cycle (always is cycle's old name), and OBSERVABILITY_THRESHOLDS version 2 their numbers (deadline_seconds, heartbeat_seconds, silent_minutes; tight 30/300/10, idle 28800/28800/540, cycle 120/120/10); sender_silent (version 3) and the trends page call a sender silent after its tier's silent_minutes, and ingest_silent (version 3) gives each project its quickest sender's window and a margin_minutes"
+          ],
+          [
+            "added",
+            "The incidents fact reads Cloud Monitoring's SLA incidents (observability.incidents_view), and sla_incident (critical) and sla_incident_warning give each open incident a signal until it closes, a sender's under its sender_silent subject (project/sender) and a site's under its service, so NOTIFIER_ROUTES routes them as before"
           ]
         ]
       },
       "depends": [
         "#identity"
       ],
-      "scope": "the published release v0.4.0 of observability",
+      "scope": "the published release v0.5.0 of observability",
       "sources": [
         {
           "ref": "observability",
-          "revision": "fd44c5009fce12f37587d4004ae7d01008a4ac1e"
+          "revision": "59e20e37452d1a4ee2ed9420c390d99daf858704"
         }
       ]
     }
   },
-  "created": "2026-11-20T00:00:00Z",
+  "created": "2026-11-27T00:00:00Z",
   "sections": [
     {
       "heading": "Identity",

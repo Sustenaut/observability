@@ -1,4 +1,0 @@
-{
-  "category": "added",
-  "change": "observability thresholds --upgrade prints OBSERVABILITY_THRESHOLDS at the latest version; version 1 is read through the chained transformers, sender_silent's silent_minutes becoming the tight and cycle tiers' and ingest_silent's its margin_minutes"
-}

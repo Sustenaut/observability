@@ -1,4 +1,0 @@
-{
-  "category": "added",
-  "change": "The incidents fact reads Cloud Monitoring's SLA incidents (observability.incidents_view), and sla_incident (critical) and sla_incident_warning give each open incident a signal until it closes, a sender's under its sender_silent subject (project/sender) and a site's under its service, so NOTIFIER_ROUTES routes them as before"
-}
