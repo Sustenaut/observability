@@ -1,4 +1,0 @@
-{
-  "category": "changed",
-  "change": "inbox_stale (version 2) reads the newest sweep's report and rejected_files (version 2) the newest listing's, up to ten hours back, as a pass on the files storage told of lists nothing"
-}
